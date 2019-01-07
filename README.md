@@ -1,3 +1,7 @@
+LERND (work in progress)
+========================
+My attempt to implement the algorithm from the paper "Learning Explanatory Rules from Noisy Data".
+
 Set up
 ======
 
