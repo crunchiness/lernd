@@ -1,15 +1,39 @@
 #!/usr/bin/env python3
-
+from typing import Tuple, NewType, List
+import string
 import numpy as np
+
+# Types
+RuleTemplate = NewType('RuleTemplate', Tuple[int, bool])  # (v, int)
+Predicate = NewType('Predicate', Tuple[str, int])  # (name, arity)
+Variable = NewType('Variable', str)
+PredicateWithArgs = NewType('PredicateWithArgs', Tuple[Predicate, List[Variable]])
+
+
+def predicate_to_str(p: PredicateWithArgs) -> str:
+    pred, args = p
+    pred_name, pred_arity = pred
+    assert pred_arity == len(args), 'Too many arguments for the predicate!'
+    return '{0}({1})'.format(pred_name, ','.join(args))
+
+
+class Clause:
+    def __init__(self, head: PredicateWithArgs, body: List[PredicateWithArgs]):
+        self.head = head
+        self.body = body
+
+    def __str__(self):
+        return '{0}->{1}'.format(predicate_to_str(self.head), ','.join(map(predicate_to_str, self.body)))
+
 
 G = []  # All ground atoms
 
 # ILP problem
 # Language model
-target = None
-P_e = None
+target = Predicate(('q', 2))
+P_e = set([])  # Set of extensional predicates
 arity_e = None
-C = None
+C = set([])  # Set of constants
 L = (target, P_e, arity_e, C)  # Language model
 
 B = None  # Background assumptions
@@ -49,9 +73,33 @@ def f_convert(B):
     return [1 if gamma in B else 0 for gamma in G]
 
 
-def cl(tau):
+def cl(Pi, L, p: Predicate, tau: RuleTemplate):
+    """
+    Restrictions:
+    1. No constants in any of the clauses.
+    2. Only clauses of atoms involving free variables.
+    3. Only predicates of arity 0-2.
+    4. Exactly 2 atoms in the body.
+
+    5. No unsafe (which have a variable used in the head but not the body)
+    6. No circular (head atom appears in the body)
+    7. No duplicate (same but different order of body atoms)
+    8. No those that contain an intensional predicate in the clause body, even though int flag was set to 0, false.
+    """
     # set of clauses that satisfy rule template
+    v, int_ = tau  # number of exist. qualified variables allowed, whether intensional predicates allowed in the body
+    assert v < 23, 'Handling of v > 22 not implemented!'
+    var1 = Variable('X')
+    var2 = Variable('Y')
+    head = PredicateWithArgs((p, [var1, var2]))
+    vars = {var1, var2}
+    for i in range(v):
+        vars.add(string.ascii_uppercase[i])
     pass
+
+
+def arity(p: Predicate) -> int:
+    return p[1]
 
 
 def f_generate(Pi, L):
@@ -64,8 +112,8 @@ def f_generate(Pi, L):
     clauses = []
     for p in P_i:
         tau1, tau2 = rules[p]
-        clauses.append(cl(tau1))
-        clauses.append(cl(tau2))
+        clauses.append(cl(Pi, L, p, tau1))
+        clauses.append(cl(Pi, L, p, tau2))
     return clauses
 
 
