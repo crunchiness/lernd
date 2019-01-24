@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Tuple, NewType, List
+from typing import Tuple, NewType, List, Set
 import string
 import numpy as np
 
@@ -73,7 +73,8 @@ def f_convert(B):
     return [1 if gamma in B else 0 for gamma in G]
 
 
-def cl(Pi, L, p: Predicate, tau: RuleTemplate):
+def cl(Pi, L, p: Predicate, tau: RuleTemplate) -> Set[Clause]:
+    # L = (target, P_e, arity_e, C)  # Language model
     """
     Restrictions:
     1. No constants in any of the clauses.
@@ -87,15 +88,18 @@ def cl(Pi, L, p: Predicate, tau: RuleTemplate):
     8. No those that contain an intensional predicate in the clause body, even though int flag was set to 0, false.
     """
     # set of clauses that satisfy rule template
-    v, int_ = tau  # number of exist. qualified variables allowed, whether intensional predicates allowed in the body
-    assert v < 23, 'Handling of v > 22 not implemented!'
-    var1 = Variable('X')
-    var2 = Variable('Y')
-    head = PredicateWithArgs((p, [var1, var2]))
-    vars = {var1, var2}
-    for i in range(v):
-        vars.add(string.ascii_uppercase[i])
-    pass
+    v, int_ = tau  # number of exist. quantified variables allowed, whether intensional predicates allowed in the body
+    target = L[0]  # type: Predicate
+
+    target_arity = target[1]
+    total_vars = target_arity + v
+
+    assert total_vars <= len(string.ascii_uppercase), 'Handling of more than 26 variables not implemented!'
+
+    vars = [Variable(string.ascii_uppercase[i]) for i in range(total_vars)]
+    head = PredicateWithArgs((target, [vars[i] for i in range(target_arity)]))
+
+    # TODO: now do all combinations and check all the rules...
 
 
 def arity(p: Predicate) -> int:
