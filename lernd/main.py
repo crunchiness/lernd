@@ -1,29 +1,22 @@
 #!/usr/bin/env python3
-from typing import Tuple, NewType, List, Set
+
 import string
+from itertools import product
+from typing import List, Set, Iterable
+
 import numpy as np
 
-# Types
-RuleTemplate = NewType('RuleTemplate', Tuple[int, bool])  # (v, int)
-Predicate = NewType('Predicate', Tuple[str, int])  # (name, arity)
-Variable = NewType('Variable', str)
-PredicateWithArgs = NewType('PredicateWithArgs', Tuple[Predicate, List[Variable]])
-
-
-def predicate_to_str(p: PredicateWithArgs) -> str:
-    pred, args = p
-    pred_name, pred_arity = pred
-    assert pred_arity == len(args), 'Too many arguments for the predicate!'
-    return '{0}({1})'.format(pred_name, ','.join(args))
+from .types import FullPredicate, Predicate, RuleTemplate, Variable
+from .util import fpred2str
 
 
 class Clause:
-    def __init__(self, head: PredicateWithArgs, body: List[PredicateWithArgs]):
+    def __init__(self, head: FullPredicate, body: List[FullPredicate]):
         self.head = head
         self.body = body
 
     def __str__(self):
-        return '{0}->{1}'.format(predicate_to_str(self.head), ','.join(map(predicate_to_str, self.body)))
+        return '{0}->{1}'.format(fpred2str(self.head), ','.join(map(fpred2str, self.body)))
 
 
 G = []  # All ground atoms
@@ -87,9 +80,10 @@ def cl(Pi, L, p: Predicate, tau: RuleTemplate) -> Set[Clause]:
     7. No duplicate (same but different order of body atoms)
     8. No those that contain an intensional predicate in the clause body, even though int flag was set to 0, false.
     """
-    # set of clauses that satisfy rule template
+    # set of clauses that satisfy the rule template
     v, int_ = tau  # number of exist. quantified variables allowed, whether intensional predicates allowed in the body
     target = L[0]  # type: Predicate
+    P_e = L[1]  # type: Set[Predicate]
 
     target_arity = target[1]
     total_vars = target_arity + v
@@ -97,9 +91,43 @@ def cl(Pi, L, p: Predicate, tau: RuleTemplate) -> Set[Clause]:
     assert total_vars <= len(string.ascii_uppercase), 'Handling of more than 26 variables not implemented!'
 
     vars = [Variable(string.ascii_uppercase[i]) for i in range(total_vars)]
-    head = PredicateWithArgs((target, [vars[i] for i in range(target_arity)]))
+    head = FullPredicate((target, [vars[i] for i in range(target_arity)]))
 
     # TODO: now do all combinations and check all the rules...
+
+    possible_preds = list(P_e) + [target] if int_ else P_e  # TODO: creating auxiliary predicates
+
+    clauses = set([])
+    for pred1, pred2 in product(possible_preds, possible_preds):
+        for pred1_full in pred_with_vars_generator(pred1, vars):
+            for pred2_full in pred_with_vars_generator(pred2, vars):
+                clauses.add(Clause(head, [pred1_full, pred2_full]))
+                # print(Clause(head, [pred1_full, pred2_full]))
+                # print(predicate_to_str(pred1_full) + ', ' + predicate_to_str(pred2_full))
+    return clauses
+
+
+def generate_predicate(possible_preds: List[Predicate], vars: List[Variable]):
+    for pred in possible_preds:
+        for pred_full in pred_with_vars_generator(pred, vars):
+            print(fpred2str(pred_full))
+
+
+def generate_2_predicates(possible_preds: list, vars: list):
+    for pred1, pred2 in product(possible_preds, possible_preds):
+        for pred1_full, pred2_full in product(pred_with_vars_generator(pred1, vars), pred_with_vars_generator(pred2, vars)):
+            print(fpred2str(pred1_full) + ', ' + fpred2str(pred2_full))
+
+
+def pred_with_vars_generator(predicate: Predicate, vars: List[Variable]) -> Iterable[FullPredicate]:
+    for combination in product(vars, repeat=predicate[1]):
+        yield FullPredicate((predicate, list(combination)))
+
+
+p = ['a/2', 'b/1', 'c/0', 'd/2']
+vars = ['X', 'Y', 'Z']
+# generate_predicate(list(map(predicate_from_str, p)), list(map(lambda x: Variable(x), vars)))
+# generate_2_predicates(list(map(str2pred, p)), list(map(lambda x: Variable(x), vars)))
 
 
 def arity(p: Predicate) -> int:

@@ -20,3 +20,11 @@ Activate the environment before running the project:
 ```bash
 $ conda activate py37
 ```
+
+Run tests
+=========
+
+To run tests:
+```bash
+$ python3 -m lernd.test
+```
