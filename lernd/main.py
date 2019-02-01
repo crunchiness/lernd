@@ -1,22 +1,45 @@
 #!/usr/bin/env python3
 
 import string
+from functools import reduce
 from itertools import product
-from typing import List, Set, Iterable
+from operator import add
+from typing import List, Set, Iterable, Tuple
 
 import numpy as np
+from ordered_set import OrderedSet
 
+import lernd.util as u
 from .types import FullPredicate, Predicate, RuleTemplate, Variable
-from .util import fpred2str
 
 
 class Clause:
     def __init__(self, head: FullPredicate, body: List[FullPredicate]):
-        self.head = head
-        self.body = body
+        self._head = head
+        self._body = body
+
+    def __eq__(self, other):
+        return self.head == other.head and sorted(self.body) == sorted(other.body)
 
     def __str__(self):
-        return '{0}->{1}'.format(fpred2str(self.head), ','.join(map(fpred2str, self.body)))
+        return '{0}<-{1}'.format(u.fpred2str(self._head), ', '.join(map(u.fpred2str, self._body)))
+
+    @property
+    def head(self):
+        return self._head
+
+    @property
+    def body(self):
+        return self._body
+
+    @classmethod
+    def from_str(cls, s: str):
+        clause_list = s.split('<-')
+        head_str = clause_list[0]
+        body_strs = clause_list[1].split(', ')
+        head = u.str2fpred(head_str)
+        body = list(map(u.str2fpred, body_strs))
+        return cls(head, body)
 
 
 G = []  # All ground atoms
@@ -27,7 +50,7 @@ target = Predicate(('q', 2))
 P_e = set([])  # Set of extensional predicates
 arity_e = None
 C = set([])  # Set of constants
-L = (target, P_e, arity_e, C)  # Language model
+L = (target, P_e, arity_e, C)  # type: Tuple[Predicate, Set[Predicate], None, Set] # Language model
 
 B = None  # Background assumptions
 P = []  # Positive examples
@@ -66,57 +89,81 @@ def f_convert(B):
     return [1 if gamma in B else 0 for gamma in G]
 
 
-def cl(Pi, L, p: Predicate, tau: RuleTemplate) -> Set[Clause]:
-    # L = (target, P_e, arity_e, C)  # Language model
+def cl(preds_int: List[Predicate], preds_ext: Set[Predicate], pred: Predicate, tau: RuleTemplate):
     """
     Restrictions:
-    1. No constants in any of the clauses.
-    2. Only clauses of atoms involving free variables.
-    3. Only predicates of arity 0-2.
-    4. Exactly 2 atoms in the body.
+    1. Only clauses of atoms involving free variables. No constants in any of the clauses. - implemented
+    2. Only predicates of arity 0-2. - TODO: implement elsewhere
+    3. Exactly 2 atoms in the body. - implemented
 
-    5. No unsafe (which have a variable used in the head but not the body)
-    6. No circular (head atom appears in the body)
-    7. No duplicate (same but different order of body atoms)
-    8. No those that contain an intensional predicate in the clause body, even though int flag was set to 0, false.
+    4. No unsafe (which have a variable used in the head but not the body) - implemented
+    5. No circular (head atom appears in the body) - implemented
+    6. No duplicate (same but different order of body atoms) - implemented
+    7. No those that contain an intensional predicate in the clause body, even though int flag was set to 0, false. -
+       implemented
+       TODO: test the entire cl
     """
     # set of clauses that satisfy the rule template
     v, int_ = tau  # number of exist. quantified variables allowed, whether intensional predicates allowed in the body
-    target = L[0]  # type: Predicate
-    P_e = L[1]  # type: Set[Predicate]
 
-    target_arity = target[1]
-    total_vars = target_arity + v
+    pred_arity = pred[1]
+    total_vars = pred_arity + v
 
     assert total_vars <= len(string.ascii_uppercase), 'Handling of more than 26 variables not implemented!'
 
     vars = [Variable(string.ascii_uppercase[i]) for i in range(total_vars)]
-    head = FullPredicate((target, [vars[i] for i in range(target_arity)]))
+    head = FullPredicate((pred, [vars[i] for i in range(pred_arity)]))
 
-    # TODO: now do all combinations and check all the rules...
+    possible_preds = list(preds_ext) + preds_int if int_ else list(preds_ext)  # type: List[Predicate]
 
-    possible_preds = list(P_e) + [target] if int_ else P_e  # TODO: creating auxiliary predicates
-
-    clauses = set([])
+    clauses = OrderedSet()
     for pred1, pred2 in product(possible_preds, possible_preds):
         for pred1_full in pred_with_vars_generator(pred1, vars):
             for pred2_full in pred_with_vars_generator(pred2, vars):
-                clauses.add(Clause(head, [pred1_full, pred2_full]))
-                # print(Clause(head, [pred1_full, pred2_full]))
-                # print(predicate_to_str(pred1_full) + ', ' + predicate_to_str(pred2_full))
+                clause = Clause(head, [pred1_full, pred2_full])
+                if check_clause_unsafe(clause):
+                    continue
+                if check_circular(clause):
+                    continue
+                clauses.add(clause)
     return clauses
+
+
+def check_circular(clause: Clause) -> bool:
+    """
+    Returns True if the clause is circular (head atom appears in the body)
+    """
+    head = clause.head  # type: FullPredicate
+    atoms = clause.body  # type: List[FullPredicate]
+    if head in atoms:
+        return True
+    return False
+
+
+def check_clause_unsafe(clause: Clause) -> bool:
+    """
+    Returns True if clause is unsafe (has a variable used in the head but not the body)
+    """
+    head_vars = clause.head[1]  # type: List[Variable]
+    preds = clause.body  # type: Set[FullPredicate]
+    preds_list = list(preds)
+    body_vars = reduce(add, map(lambda x: x[1], preds_list))
+    for head_var in head_vars:
+        if head_var not in body_vars:
+            return True
+    return False
 
 
 def generate_predicate(possible_preds: List[Predicate], vars: List[Variable]):
     for pred in possible_preds:
         for pred_full in pred_with_vars_generator(pred, vars):
-            print(fpred2str(pred_full))
+            print(u.fpred2str(pred_full))
 
 
 def generate_2_predicates(possible_preds: list, vars: list):
     for pred1, pred2 in product(possible_preds, possible_preds):
         for pred1_full, pred2_full in product(pred_with_vars_generator(pred1, vars), pred_with_vars_generator(pred2, vars)):
-            print(fpred2str(pred1_full) + ', ' + fpred2str(pred2_full))
+            print(u.fpred2str(pred1_full) + ', ' + u.fpred2str(pred2_full))
 
 
 def pred_with_vars_generator(predicate: Predicate, vars: List[Variable]) -> Iterable[FullPredicate]:
@@ -138,14 +185,15 @@ def f_generate(Pi, L):
     # non-differentiable operation
     # returns a set of clauses
     target = L[0]
+    P_e = L[1]  # type: Set[Predicate]
     P_a = Pi[0]
-    P_i = P_a + [target]
+    P_i = P_a + [target]  # type: List[Predicate]
     rules = Pi[2]
     clauses = []
     for p in P_i:
         tau1, tau2 = rules[p]
-        clauses.append(cl(Pi, L, p, tau1))
-        clauses.append(cl(Pi, L, p, tau2))
+        clauses.append(cl(P_i, P_e, p, tau1))
+        clauses.append(cl(P_i, P_e, p, tau2))
     return clauses
 
 
