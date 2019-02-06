@@ -10,19 +10,22 @@ import numpy as np
 from ordered_set import OrderedSet
 
 import lernd.util as u
-from .types import FullPredicate, Predicate, RuleTemplate, Variable
+from .types import Atom, Predicate, RuleTemplate, Variable
 
 
 class Clause:
-    def __init__(self, head: FullPredicate, body: List[FullPredicate]):
+    def __init__(self, head: Atom, body: Tuple[Atom, ...]):
         self._head = head
         self._body = body
 
     def __eq__(self, other):
-        return self.head == other.head and sorted(self.body) == sorted(other.body)
+        return self.head == other.head and self.body == other.body
+
+    def __hash__(self):
+        return hash(self.head) ^ hash(self.body)
 
     def __str__(self):
-        return '{0}<-{1}'.format(u.fpred2str(self._head), ', '.join(map(u.fpred2str, self._body)))
+        return '{0}<-{1}'.format(u.atom2str(self._head), ', '.join(map(u.atom2str, self._body)))
 
     @property
     def head(self):
@@ -37,8 +40,8 @@ class Clause:
         clause_list = s.split('<-')
         head_str = clause_list[0]
         body_strs = clause_list[1].split(', ')
-        head = u.str2fpred(head_str)
-        body = list(map(u.str2fpred, body_strs))
+        head = u.str2atom(head_str)
+        body = tuple(map(u.str2atom, body_strs))
         return cls(head, body)
 
 
@@ -89,7 +92,7 @@ def f_convert(B):
     return [1 if gamma in B else 0 for gamma in G]
 
 
-def cl(preds_int: List[Predicate], preds_ext: Set[Predicate], pred: Predicate, tau: RuleTemplate):
+def cl(preds_int: List[Predicate], preds_ext: Set[Predicate], pred: Predicate, tau: RuleTemplate) -> OrderedSet:
     """
     Restrictions:
     1. Only clauses of atoms involving free variables. No constants in any of the clauses. - implemented
@@ -112,7 +115,7 @@ def cl(preds_int: List[Predicate], preds_ext: Set[Predicate], pred: Predicate, t
     assert total_vars <= len(string.ascii_uppercase), 'Handling of more than 26 variables not implemented!'
 
     vars = [Variable(string.ascii_uppercase[i]) for i in range(total_vars)]
-    head = FullPredicate((pred, [vars[i] for i in range(pred_arity)]))
+    head = Atom((pred, tuple([vars[i] for i in range(pred_arity)])))
 
     possible_preds = list(preds_ext) + preds_int if int_ else list(preds_ext)  # type: List[Predicate]
 
@@ -120,21 +123,34 @@ def cl(preds_int: List[Predicate], preds_ext: Set[Predicate], pred: Predicate, t
     for pred1, pred2 in product(possible_preds, possible_preds):
         for pred1_full in pred_with_vars_generator(pred1, vars):
             for pred2_full in pred_with_vars_generator(pred2, vars):
-                clause = Clause(head, [pred1_full, pred2_full])
+                clause = Clause(head, tuple(sorted([pred1_full, pred2_full])))
                 if check_clause_unsafe(clause):
                     continue
                 if check_circular(clause):
                     continue
+                if not check_int_flag_satisfied(clause, int_, preds_int):
+                    continue
                 clauses.add(clause)
     return clauses
+
+
+def check_int_flag_satisfied(clause: Clause, int_: bool, preds_int: List[Predicate]) -> bool:
+    # if intensional predicate required:
+    if int_:
+        for atom in clause.body:
+            if atom[0] in preds_int:
+                return True
+        return False
+    # otherwise intensional predicates not in possible_preds
+    return True
 
 
 def check_circular(clause: Clause) -> bool:
     """
     Returns True if the clause is circular (head atom appears in the body)
     """
-    head = clause.head  # type: FullPredicate
-    atoms = clause.body  # type: List[FullPredicate]
+    head = clause.head  # type: Atom
+    atoms = clause.body  # type: List[Atom]
     if head in atoms:
         return True
     return False
@@ -145,9 +161,9 @@ def check_clause_unsafe(clause: Clause) -> bool:
     Returns True if clause is unsafe (has a variable used in the head but not the body)
     """
     head_vars = clause.head[1]  # type: List[Variable]
-    preds = clause.body  # type: Set[FullPredicate]
+    preds = clause.body  # type: Tuple[Atom, ...]
     preds_list = list(preds)
-    body_vars = reduce(add, map(lambda x: x[1], preds_list))
+    body_vars = reduce(add, map(lambda x: list(x[1]), preds_list))
     for head_var in head_vars:
         if head_var not in body_vars:
             return True
@@ -157,18 +173,18 @@ def check_clause_unsafe(clause: Clause) -> bool:
 def generate_predicate(possible_preds: List[Predicate], vars: List[Variable]):
     for pred in possible_preds:
         for pred_full in pred_with_vars_generator(pred, vars):
-            print(u.fpred2str(pred_full))
+            print(u.atom2str(pred_full))
 
 
 def generate_2_predicates(possible_preds: list, vars: list):
     for pred1, pred2 in product(possible_preds, possible_preds):
         for pred1_full, pred2_full in product(pred_with_vars_generator(pred1, vars), pred_with_vars_generator(pred2, vars)):
-            print(u.fpred2str(pred1_full) + ', ' + u.fpred2str(pred2_full))
+            print(u.atom2str(pred1_full) + ', ' + u.atom2str(pred2_full))
 
 
-def pred_with_vars_generator(predicate: Predicate, vars: List[Variable]) -> Iterable[FullPredicate]:
+def pred_with_vars_generator(predicate: Predicate, vars: List[Variable]) -> Iterable[Atom]:
     for combination in product(vars, repeat=predicate[1]):
-        yield FullPredicate((predicate, list(combination)))
+        yield Atom((predicate, tuple(combination)))
 
 
 p = ['a/2', 'b/1', 'c/0', 'd/2']
