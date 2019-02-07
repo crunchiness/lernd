@@ -4,9 +4,10 @@ __author__ = "Ingvaras Merkys"
 
 import re
 
-from .types import Predicate, Atom, Variable, Constant, GroundAtom
+from .types import Atom, Constant, GroundAtom, Predicate, Variable
 
 
+# Predicate
 def str2pred(s: str) -> Predicate:
     result = re.match(r'([a-z])+/([0-9])', s)
     if result:
@@ -17,6 +18,7 @@ def str2pred(s: str) -> Predicate:
         raise Exception
 
 
+# Atom
 def str2atom(s: str) -> Atom:
     result = re.match(r'([a-z]+[0-9]*)\(([A-Z,]*)\)', s)
     name = result.group(1)
@@ -34,6 +36,7 @@ def atom2str(atom: Atom) -> str:
     return '{0}({1})'.format(pred_name, ','.join(vars))
 
 
+# GroundAtom
 def str2ground_atom(s: str) -> GroundAtom:
     result = re.match(r'([a-z]+[0-9]*)\(([a-z,]*)\)', s)
     name = result.group(1)

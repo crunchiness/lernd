@@ -103,7 +103,7 @@ def xc_rec(clause_body: Tuple[Atom, ...],
     # base case
     if len(clause_body) == call_number:
         return [indices]
-    
+
     atom_pred, atom_vars = clause_body[call_number]
     result = []
 

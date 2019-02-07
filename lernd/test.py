@@ -118,7 +118,7 @@ class TestMain(unittest.TestCase):
         for clause, expected_clause in zip(clauses, expected_clauses):
             self.assertEqual(clause.__str__(), expected_clause)
 
-    def test_asdf_recursive(self):
+    def test_xc_rec(self):
         ground_atoms = list(map(u.str2ground_atom, [
             'p(a,a)',
             'p(a,b)',
@@ -165,11 +165,9 @@ class TestMain(unittest.TestCase):
             )
         ]
 
-        # for substitution, expected_result in substitution_expected:
-        #     result = m.xc_rec(clause.body, ground_atoms, substitution)
-        #     self.assertEqual(result, expected_result)
-        for i in m.make_xc(clause, ground_atoms):
-            print(i)
+        for substitution, expected_result in substitution_expected:
+            result = m.xc_rec(clause.body, ground_atoms, substitution)
+            self.assertEqual(result, expected_result)
 
 
 if __name__ == '__main__':
