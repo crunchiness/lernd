@@ -4,46 +4,14 @@ import string
 from functools import reduce
 from itertools import product
 from operator import add
-from typing import List, Set, Iterable, Tuple
+from typing import List, Set, Iterable, Tuple, Dict
 
 import numpy as np
 from ordered_set import OrderedSet
 
 import lernd.util as u
+from .classes import Clause, LanguageModel, ProgramTemplate
 from .types import Atom, Predicate, RuleTemplate, Variable
-
-
-class Clause:
-    def __init__(self, head: Atom, body: Tuple[Atom, ...]):
-        self._head = head
-        self._body = body
-
-    def __eq__(self, other):
-        return self.head == other.head and self.body == other.body
-
-    def __hash__(self):
-        return hash(self.head) ^ hash(self.body)
-
-    def __str__(self):
-        return '{0}<-{1}'.format(u.atom2str(self._head), ', '.join(map(u.atom2str, self._body)))
-
-    @property
-    def head(self):
-        return self._head
-
-    @property
-    def body(self):
-        return self._body
-
-    @classmethod
-    def from_str(cls, s: str):
-        clause_list = s.split('<-')
-        head_str = clause_list[0]
-        body_strs = clause_list[1].split(', ')
-        head = u.str2atom(head_str)
-        body = tuple(map(u.str2atom, body_strs))
-        return cls(head, body)
-
 
 G = []  # All ground atoms
 
@@ -53,20 +21,26 @@ target = Predicate(('q', 2))
 P_e = set([])  # Set of extensional predicates
 arity_e = None
 C = set([])  # Set of constants
-L = (target, P_e, arity_e, C)  # type: Tuple[Predicate, Set[Predicate], None, Set] # Language model
+
+# L = (target, P_e, arity_e, C)  # type: Tuple[Predicate, Set[Predicate], None, Set] # Language model
+l = LanguageModel(target, P_e)
+
 
 B = None  # Background assumptions
 P = []  # Positive examples
 N = []  # Negative examples
 
-ILP = (L, B, P, N)  # ILP problem
+# ILP = (L, B, P, N)  # ILP problem
 
 # Program template
 P_a = None
 arity_a = None
 rules = None  # Dict (predicate p: tuple of rule templates (tau1, tau2))
 T = None
-Pi = (P_a, arity_a, rules, T)  # Program template
+
+# pi = (P_a, arity_a, rules, T)  # Program template
+pi = ProgramTemplate(P_a, rules)
+
 
 W = None  # set of clause weights
 
@@ -81,7 +55,7 @@ def f_extract(valuation, gamma):
     pass
 
 
-def f_infer(param, param1, W, T):
+def f_infer(fb, clauses: Dict[Predicate, Tuple[OrderedSet, OrderedSet]], W, T: int):
     # differentiable operation
     pass
 
@@ -95,18 +69,14 @@ def f_convert(B):
 def cl(preds_int: List[Predicate], preds_ext: Set[Predicate], pred: Predicate, tau: RuleTemplate) -> OrderedSet:
     """
     Restrictions:
-    1. Only clauses of atoms involving free variables. No constants in any of the clauses. - implemented
-    2. Only predicates of arity 0-2. - TODO: implement elsewhere
-    3. Exactly 2 atoms in the body. - implemented
-
-    4. No unsafe (which have a variable used in the head but not the body) - implemented
-    5. No circular (head atom appears in the body) - implemented
-    6. No duplicate (same but different order of body atoms) - implemented
-    7. No those that contain an intensional predicate in the clause body, even though int flag was set to 0, false. -
-       implemented
-       TODO: test the entire cl
+    1. Only clauses of atoms involving free variables. No constants in any of the clauses.
+    2. Only predicates of arity 0-2.
+    3. Exactly 2 atoms in the body.
+    4. No unsafe (which have a variable used in the head but not the body)
+    5. No circular (head atom appears in the body)
+    6. No duplicate (same but different order of body atoms)
+    7. No those that contain an intensional predicate in the clause body, even though int flag was set to 0, false.
     """
-    # set of clauses that satisfy the rule template
     v, int_ = tau  # number of exist. quantified variables allowed, whether intensional predicates allowed in the body
 
     pred_arity = pred[1]
@@ -197,24 +167,19 @@ def arity(p: Predicate) -> int:
     return p[1]
 
 
-def f_generate(Pi, L):
+def f_generate(pi: ProgramTemplate, l: LanguageModel) -> Dict[Predicate, Tuple[OrderedSet, OrderedSet]]:
     # non-differentiable operation
     # returns a set of clauses
-    target = L[0]
-    P_e = L[1]  # type: Set[Predicate]
-    P_a = Pi[0]
-    P_i = P_a + [target]  # type: List[Predicate]
-    rules = Pi[2]
-    clauses = []
-    for p in P_i:
-        tau1, tau2 = rules[p]
-        clauses.append(cl(P_i, P_e, p, tau1))
-        clauses.append(cl(P_i, P_e, p, tau2))
+    preds_int = pi.preds_aux + [target]
+    clauses = {}
+    for pred in preds_int:
+        tau1, tau2 = rules[pred]
+        clauses[pred] = (cl(preds_int, l.preds_ext, pred, tau1), cl(preds_int, l.preds_ext, pred, tau2))
     return clauses
 
 
-def p1(lambda_, alpha, W, Pi, L, B):
-    return f_extract(f_infer(f_convert(B), f_generate(Pi, L), W, T), alpha)
+def p1(lambda_, alpha, W, pi: ProgramTemplate, l: LanguageModel, B):
+    return f_extract(f_infer(f_convert(B), f_generate(pi, l), W, T), alpha)
 
 
 # loss is cross-entropy
