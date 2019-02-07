@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+__author__ = "Ingvaras Merkys"
+
 import string
 from functools import reduce
 from itertools import product
@@ -11,7 +13,7 @@ from ordered_set import OrderedSet
 
 import lernd.util as u
 from .classes import Clause, LanguageModel, ProgramTemplate
-from .types import Atom, Predicate, RuleTemplate, Variable
+from .types import Atom, Constant, GroundAtom, Predicate, RuleTemplate, Variable
 
 G = []  # All ground atoms
 
@@ -42,7 +44,7 @@ T = None
 pi = ProgramTemplate(P_a, rules)
 
 
-W = None  # set of clause weights
+W = {}  # type: Dict[Predicate, np.matrix] # set of clause weights
 
 Lambda = [(gamma, 1) for gamma in P] + [(gamma, 0) for gamma in N]
 
@@ -55,15 +57,82 @@ def f_extract(valuation, gamma):
     pass
 
 
-def f_infer(fb, clauses: Dict[Predicate, Tuple[OrderedSet, OrderedSet]], W, T: int):
+def f_infer(fb, clauses: Dict[Predicate, Tuple[OrderedSet, OrderedSet]], weights: Dict[Predicate, np.matrix], T: int):
     # differentiable operation
     pass
 
 
-def f_convert(B):
+def f_convert(B: Set[GroundAtom]) -> Dict[Predicate, float]:
     # non-differentiable operation
     # creates a valuation mapping B to 1 and other to 0
+    valuation = {}
+    for assumption in B:
+        assumption
     return [1 if gamma in B else 0 for gamma in G]
+
+
+def make_xc(c: Clause, ground_atoms: List[GroundAtom]) -> List[Tuple[GroundAtom, List[Tuple[int, ...]]]]:
+    xc = []
+    head_pred, head_vars = c.head
+
+    # for ground_atom that matches the head
+    for ground_atom in ground_atoms:
+        if ground_atom[0] == head_pred:
+            ga_consts = ground_atom[1]
+
+            # create substitution based on the head atom
+            substitution = {}
+            for var, const in zip(head_vars, ga_consts):
+                substitution[var] = const
+
+            # find all pairs of ground atoms for the body of this clause satisfying the substitution
+            pairs = xc_rec(c.body, ground_atoms, substitution)
+            xc.append((ground_atom, pairs))
+        else:
+            xc.append((ground_atom, []))
+    return xc
+
+
+def xc_rec(clause_body: Tuple[Atom, ...],
+           ground_atoms: List[GroundAtom],
+           substitution: Dict[Variable, Constant],
+           indices: Tuple[int, ...] = tuple(),
+           call_number: int = 0
+           ) -> List[Tuple[int, ...]]:
+
+    # base case
+    if len(clause_body) == call_number:
+        return [indices]
+    
+    atom_pred, atom_vars = clause_body[call_number]
+    result = []
+
+    # for ground_atom that matches this atom
+    for i, ground_atom in enumerate(ground_atoms):
+        if ground_atom[0] != atom_pred:
+            continue
+        ga_consts = ground_atom[1]
+
+        # additional substitutions
+        new_substitution = []
+        for var, const in zip(atom_vars, ga_consts):
+
+            # if incompatible with current substitution, discard ground_atom
+            if var in substitution and substitution[var] != const:
+                new_substitution = []
+                break
+
+            # otherwise add to substitution
+            else:
+                new_substitution.append((var, const))
+
+        # if new substitutions added, merge them and recurse
+        if len(new_substitution) > 0:
+            substitution_ = substitution.copy()
+            for key, value in new_substitution:
+                substitution_[key] = value
+            result += xc_rec(clause_body, ground_atoms, substitution_, tuple(list(indices) + [i + 1]), call_number + 1)
+    return result
 
 
 def cl(preds_int: List[Predicate], preds_ext: Set[Predicate], pred: Predicate, tau: RuleTemplate) -> OrderedSet:
@@ -163,8 +232,8 @@ vars = ['X', 'Y', 'Z']
 # generate_2_predicates(list(map(str2pred, p)), list(map(lambda x: Variable(x), vars)))
 
 
-def arity(p: Predicate) -> int:
-    return p[1]
+def arity(pred: Predicate) -> int:
+    return pred[1]
 
 
 def f_generate(pi: ProgramTemplate, l: LanguageModel) -> Dict[Predicate, Tuple[OrderedSet, OrderedSet]]:

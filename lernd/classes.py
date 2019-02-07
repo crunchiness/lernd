@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+
+__author__ = "Ingvaras Merkys"
+
 from typing import Tuple, Set, List, Dict
 
 from lernd import util as u

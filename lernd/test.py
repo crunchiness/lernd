@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
+
+__author__ = "Ingvaras Merkys"
+
 import unittest
 
 from lernd import classes as c
 from lernd import main as m
 from lernd import util as u
-from .types import Atom, Predicate, RuleTemplate, Variable
+from .types import Atom, Constant, Predicate, RuleTemplate, Variable
 
 
 class TestUtil(unittest.TestCase):
@@ -114,6 +117,59 @@ class TestMain(unittest.TestCase):
         self.assertEqual(len(clauses), expected_total)
         for clause, expected_clause in zip(clauses, expected_clauses):
             self.assertEqual(clause.__str__(), expected_clause)
+
+    def test_asdf_recursive(self):
+        ground_atoms = list(map(u.str2ground_atom, [
+            'p(a,a)',
+            'p(a,b)',
+            'p(b,a)',
+            'p(b,b)',
+            'q(a,a)',
+            'q(a,b)',
+            'q(b,a)',
+            'q(b,b)',
+            'r(a,a)',
+            'r(a,b)',
+            'r(b,a)',
+            'r(b,b)'
+        ]))
+        clause = c.Clause.from_str('r(X,Y)<-p(X,Z), q(Z,Y)')
+        substitution_expected = [
+            (
+                {
+                    Variable('X'): Constant('a'),
+                    Variable('Y'): Constant('a')
+                },
+                [(1, 5), (2, 7)]
+            ),
+            (
+                {
+                    Variable('X'): Constant('a'),
+                    Variable('Y'): Constant('b')
+                },
+                [(1, 6), (2, 8)]
+            ),
+            (
+                {
+                    Variable('X'): Constant('b'),
+                    Variable('Y'): Constant('a')
+                },
+                [(3, 5), (4, 7)]
+            ),
+            (
+                {
+                    Variable('X'): Constant('b'),
+                    Variable('Y'): Constant('b')
+                },
+                [(3, 6), (4, 8)]
+            )
+        ]
+
+        # for substitution, expected_result in substitution_expected:
+        #     result = m.xc_rec(clause.body, ground_atoms, substitution)
+        #     self.assertEqual(result, expected_result)
+        for i in m.make_xc(clause, ground_atoms):
+            print(i)
 
 
 if __name__ == '__main__':
