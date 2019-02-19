@@ -266,6 +266,34 @@ class TestMain(unittest.TestCase):
         result = m.make_xc_tensor(xc, constants, tau, ground_atoms)
         self.assertEqual(result.tolist(), expected_tensor.tolist())
 
+    def test_fc(self):
+        # def fc(a, c: Clause, ground_atoms: List[GroundAtom], constants, tau: RuleTemplate):
+        a = np.array([0, 1, 0.9, 0, 0, 0.1, 0, 0.2, 0.8, 0, 0, 0, 0])
+        clause = c.Clause.from_str('r(X,Y)<-p(X,Z), q(Z,Y)')
+        ground_atoms = list(map(u.str2ground_atom, [
+            'p(a,a)',
+            'p(a,b)',
+            'p(b,a)',
+            'p(b,b)',
+            'q(a,a)',
+            'q(a,b)',
+            'q(b,a)',
+            'q(b,b)',
+            'r(a,a)',
+            'r(a,b)',
+            'r(b,a)',
+            'r(b,b)'
+        ]))
+        constants = {Constant('a'), Constant('b')}
+        tau = RuleTemplate((1, False))
+        expected_a_apostrophe = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0.18, 0.72, 0, 0])
+        a_apostrophe = m.fc(a, clause, ground_atoms, constants, tau)
+        try:
+            np.testing.assert_array_almost_equal(a_apostrophe, expected_a_apostrophe)
+            self.assertTrue(True)
+        except AssertionError:
+            self.assertTrue(False)
+
 
 if __name__ == '__main__':
     unittest.main()

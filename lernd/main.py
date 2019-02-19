@@ -137,12 +137,14 @@ def xc_rec(clause_body: Tuple[Atom, ...],
     return result
 
 
-def make_xc_tensor(xc: List[Tuple[GroundAtom, List[Tuple[int, ...]]]], constants, tau: RuleTemplate, ground_atoms):
+def make_xc_tensor(xc: List[Tuple[GroundAtom, List[Tuple[int, ...]]]], constants, tau: RuleTemplate, ground_atoms) -> np.array:
+    """Returns tensor of indices
+    """
     n = len(ground_atoms) + 1  # plus falsum
     v = tau[0]
     w = len(constants) ** v
 
-    xc_tensor = np.empty((n, w, 2))
+    xc_tensor = np.empty((n, w, 2), dtype=int)
     xc_tensor[0] = np.zeros((w, 2))
     for k, (_, xk_indices) in enumerate(xc):
         for m in range(w):
@@ -151,6 +153,24 @@ def make_xc_tensor(xc: List[Tuple[GroundAtom, List[Tuple[int, ...]]]], constants
             else:
                 xc_tensor[k + 1][m] = (0, 0)
     return xc_tensor
+
+
+def fc(a, c: Clause, ground_atoms: List[GroundAtom], constants, tau: RuleTemplate):
+    def gather2(a: np.array, x: np.array):
+        # a is a vector, x is a matrix
+        return a[x]
+
+    def fuzzy_and(y1: np.array, y2: np.array):
+        # product t-norm, element-wise multiplication
+        return np.multiply(y1, y2)
+    xc = make_xc(c, ground_atoms)
+    xc_tensor = make_xc_tensor(xc, constants, tau, ground_atoms)
+    x1 = xc_tensor[:, :, 0]
+    x2 = xc_tensor[:, :, 1]
+    y1 = gather2(a, x1)
+    y2 = gather2(a, x2)
+    z = fuzzy_and(y1, y2)
+    return np.max(z, axis=1)
 
 
 def cl(preds_int: List[Predicate], preds_ext: Set[Predicate], pred: Predicate, tau: RuleTemplate) -> OrderedSet:
