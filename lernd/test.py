@@ -3,6 +3,7 @@
 __author__ = "Ingvaras Merkys"
 
 import unittest
+import numpy as np
 
 from lernd import classes as c
 from lernd import main as m
@@ -168,6 +169,102 @@ class TestMain(unittest.TestCase):
         for substitution, expected_result in substitution_expected:
             result = m.xc_rec(clause.body, ground_atoms, substitution)
             self.assertEqual(result, expected_result)
+
+    def test_make_xc(self):
+        ground_atoms = list(map(u.str2ground_atom, [
+            'p(a,a)',
+            'p(a,b)',
+            'p(b,a)',
+            'p(b,b)',
+            'q(a,a)',
+            'q(a,b)',
+            'q(b,a)',
+            'q(b,b)',
+            'r(a,a)',
+            'r(a,b)',
+            'r(b,a)',
+            'r(b,b)'
+        ]))
+        clause = c.Clause.from_str('r(X,Y)<-p(X,Z), q(Z,Y)')
+        f = u.str2ground_atom
+        expected = [
+            (f('p(a,a)'), []),
+            (f('p(a,b)'), []),
+            (f('p(b,a)'), []),
+            (f('p(b,b)'), []),
+            (f('q(a,a)'), []),
+            (f('q(a,b)'), []),
+            (f('q(b,a)'), []),
+            (f('q(b,b)'), []),
+            (f('r(a,a)'), [(1, 5), (2, 7)]),
+            (f('r(a,b)'), [(1, 6), (2, 8)]),
+            (f('r(b,a)'), [(3, 5), (4, 7)]),
+            (f('r(b,b)'), [(3, 6), (4, 8)])
+        ]
+        self.assertEqual(m.make_xc(clause, ground_atoms), expected)
+
+    def test_make_xc_tensor(self):
+        f = u.str2ground_atom
+        xc = [
+            (f('p(a,a)'), []),
+            (f('p(a,b)'), []),
+            (f('p(b,a)'), []),
+            (f('p(b,b)'), []),
+            (f('q(a,a)'), []),
+            (f('q(a,b)'), []),
+            (f('q(b,a)'), []),
+            (f('q(b,b)'), []),
+            (f('r(a,a)'), [(1, 5), (2, 7)]),
+            (f('r(a,b)'), [(1, 6), (2, 8)]),
+            (f('r(b,a)'), [(3, 5), (4, 7)]),
+            (f('r(b,b)'), [(3, 6), (4, 8)])
+        ]
+        constants = {Constant('a'), Constant('b')}
+        tau = RuleTemplate((1, False))
+        ground_atoms = list(map(u.str2ground_atom, [
+            'p(a,a)',
+            'p(a,b)',
+            'p(b,a)',
+            'p(b,b)',
+            'q(a,a)',
+            'q(a,b)',
+            'q(b,a)',
+            'q(b,b)',
+            'r(a,a)',
+            'r(a,b)',
+            'r(b,a)',
+            'r(b,b)'
+        ]))
+        expected_tensor = np.array([
+            [(0, 0),
+             (0, 0)],
+            [(0, 0),
+             (0, 0)],
+            [(0, 0),
+             (0, 0)],
+            [(0, 0),
+             (0, 0)],
+            [(0, 0),
+             (0, 0)],
+            [(0, 0),
+             (0, 0)],
+            [(0, 0),
+             (0, 0)],
+            [(0, 0),
+             (0, 0)],
+            [(0, 0),
+             (0, 0)],
+            [(1, 5),
+             (2, 7)],
+            [(1, 6),
+             (2, 8)],
+            [(3, 5),
+             (4, 7)],
+            [(3, 6),
+             (4, 8)]
+        ])
+        result = m.make_xc_tensor(xc, constants, tau, ground_atoms)
+        self.assertEqual(result.tolist(), expected_tensor.tolist())
 
 
 if __name__ == '__main__':

@@ -72,6 +72,8 @@ def f_convert(B: Set[GroundAtom]) -> Dict[Predicate, float]:
 
 
 def make_xc(c: Clause, ground_atoms: List[GroundAtom]) -> List[Tuple[GroundAtom, List[Tuple[int, ...]]]]:
+    """Creates a Xc - a set of [sets of [pairs of [indices of ground atoms]]] for clause c
+    """
     xc = []
     head_pred, head_vars = c.head
 
@@ -133,6 +135,22 @@ def xc_rec(clause_body: Tuple[Atom, ...],
                 substitution_[key] = value
             result += xc_rec(clause_body, ground_atoms, substitution_, tuple(list(indices) + [i + 1]), call_number + 1)
     return result
+
+
+def make_xc_tensor(xc: List[Tuple[GroundAtom, List[Tuple[int, ...]]]], constants, tau: RuleTemplate, ground_atoms):
+    n = len(ground_atoms) + 1  # plus falsum
+    v = tau[0]
+    w = len(constants) ** v
+
+    xc_tensor = np.empty((n, w, 2))
+    xc_tensor[0] = np.zeros((w, 2))
+    for k, (_, xk_indices) in enumerate(xc):
+        for m in range(w):
+            if m < len(xk_indices):
+                xc_tensor[k + 1][m] = xk_indices[m]
+            else:
+                xc_tensor[k + 1][m] = (0, 0)
+    return xc_tensor
 
 
 def cl(preds_int: List[Predicate], preds_ext: Set[Predicate], pred: Predicate, tau: RuleTemplate) -> OrderedSet:
