@@ -6,19 +6,18 @@ import string
 from functools import reduce
 from itertools import product
 from operator import add
-from typing import List, Tuple, Iterable, Dict
+from typing import Dict, Iterable, List, Tuple
 
 from ordered_set import OrderedSet
 
 from .classes import Clause, LanguageModel, ProgramTemplate
-from .types import Predicate, Atom, Variable, RuleTemplate
+from .types import Atom, Predicate, RuleTemplate, Variable
 
 
 def f_generate(program_template: ProgramTemplate,
                language_model: LanguageModel
                ) -> Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]]:
     # non-differentiable operation
-    # returns a set of clauses
     preds_int = program_template.preds_aux + [language_model.target]  # type: List[Predicate]
     clauses = {}
     for pred in preds_int:

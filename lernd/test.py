@@ -8,6 +8,7 @@ import numpy as np
 
 from lernd import classes as c
 from lernd import generator as g
+from lernd import inferrer as i
 from lernd import main as m
 from lernd import util as u
 from lernd.classes import LanguageModel, ProgramTemplate
@@ -105,25 +106,7 @@ class TestGenerator(unittest.TestCase):
             self.assertEqual(clause.__str__(), expected_clause)
 
 
-class TestMain(unittest.TestCase):
-
-    def test_arity(self):
-        p = Predicate(('p', 2))
-        self.assertEqual(u.arity(p), 2)
-
-    def test_Clause_str(self):
-        pred1 = Atom((Predicate(('p', 2)), (Variable('X'), Variable('Y'))))
-        pred2 = Atom((Predicate(('q', 2)), (Variable('X'), Variable('Z'))))
-        pred3 = Atom((Predicate(('t', 2)), (Variable('Y'), Variable('X'))))
-        clause = c.Clause(pred1, (pred2, pred3))
-        self.assertEqual(clause.__str__(), 'p(X,Y)<-q(X,Z), t(Y,X)')
-
-    def test_Clause_from_str(self):
-        clause_strs = ['p(X,Y)<-q(X,Z), t(Y,X)']
-        for clause_str in clause_strs:
-            clause = c.Clause.from_str(clause_str)
-            self.assertEqual(clause_str, clause.__str__())
-
+class TestInferrer(unittest.TestCase):
     def test_xc_rec(self):
         ground_atoms = list(map(u.str2ground_atom, [
             'p(a,a)',
@@ -172,7 +155,7 @@ class TestMain(unittest.TestCase):
         ]
 
         for substitution, expected_result in substitution_expected:
-            result = m.xc_rec(clause.body, ground_atoms, substitution)
+            result = i.xc_rec(clause.body, ground_atoms, substitution)
             self.assertEqual(result, expected_result)
 
     def test_make_xc(self):
@@ -206,7 +189,7 @@ class TestMain(unittest.TestCase):
             (f('r(b,a)'), [(3, 5), (4, 7)]),
             (f('r(b,b)'), [(3, 6), (4, 8)])
         ]
-        self.assertEqual(m.make_xc(clause, ground_atoms), expected)
+        self.assertEqual(i.make_xc(clause, ground_atoms), expected)
 
     def test_make_xc_tensor(self):
         f = u.str2ground_atom
@@ -224,7 +207,7 @@ class TestMain(unittest.TestCase):
             (f('r(b,a)'), [(3, 5), (4, 7)]),
             (f('r(b,b)'), [(3, 6), (4, 8)])
         ]
-        constants = {Constant('a'), Constant('b')}
+        constants = [Constant('a'), Constant('b')]
         tau = RuleTemplate((1, False))
         ground_atoms = list(map(u.str2ground_atom, [
             'p(a,a)',
@@ -268,7 +251,7 @@ class TestMain(unittest.TestCase):
             [(3, 6),
              (4, 8)]
         ])
-        result = m.make_xc_tensor(xc, constants, tau, ground_atoms)
+        result = i.make_xc_tensor(xc, constants, tau, ground_atoms)
         self.assertEqual(result.tolist(), expected_tensor.tolist())
 
     def test_fc(self):
@@ -292,18 +275,38 @@ class TestMain(unittest.TestCase):
         constants = {Constant('a'), Constant('b')}
         tau = RuleTemplate((1, False))
         expected_a_apostrophe = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0.18, 0.72, 0, 0])
-        a_apostrophe = m.fc(a, clause, ground_atoms, constants, tau)
+        a_apostrophe = i.fc(a, clause, ground_atoms, constants, tau)
         try:
             np.testing.assert_array_almost_equal(a_apostrophe, expected_a_apostrophe)
             self.assertTrue(True)
         except AssertionError:
             self.assertTrue(False)
 
+
+class TestMain(unittest.TestCase):
+
+    def test_arity(self):
+        p = Predicate(('p', 2))
+        self.assertEqual(u.arity(p), 2)
+
+    def test_Clause_str(self):
+        pred1 = Atom((Predicate(('p', 2)), (Variable('X'), Variable('Y'))))
+        pred2 = Atom((Predicate(('q', 2)), (Variable('X'), Variable('Z'))))
+        pred3 = Atom((Predicate(('t', 2)), (Variable('Y'), Variable('X'))))
+        clause = c.Clause(pred1, (pred2, pred3))
+        self.assertEqual(clause.__str__(), 'p(X,Y)<-q(X,Z), t(Y,X)')
+
+    def test_Clause_from_str(self):
+        clause_strs = ['p(X,Y)<-q(X,Z), t(Y,X)']
+        for clause_str in clause_strs:
+            clause = c.Clause.from_str(clause_str)
+            self.assertEqual(clause_str, clause.__str__())
+
     def test_get_ground_atoms(self):
         target_pred = u.str2pred('q/2')
         preds_ext = [u.str2pred('p/0')]
         preds_aux = [u.str2pred('t/1')]
-        l = LanguageModel(target_pred, preds_ext, [Constant(x) for x in ['a', 'b', 'c']])
+        language_model = LanguageModel(target_pred, preds_ext, [Constant(x) for x in ['a', 'b', 'c']])
         pi = ProgramTemplate(preds_aux, {}, 0)
         f = u.str2ground_atom
         expected_ground_atoms = [
@@ -321,7 +324,7 @@ class TestMain(unittest.TestCase):
             f('q(c,b)'),
             f('q(c,c)')
         ]
-        self.assertEqual(m.get_ground_atoms(l, pi), expected_ground_atoms)
+        self.assertEqual(m.get_ground_atoms(language_model, pi), expected_ground_atoms)
 
 
 if __name__ == '__main__':
