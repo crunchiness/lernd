@@ -2,10 +2,10 @@
 
 __author__ = "Ingvaras Merkys"
 
-from typing import Tuple, Set, List, Dict
+from typing import Tuple, List, Dict
 
 from lernd import util as u
-from .types import Atom, Predicate, RuleTemplate
+from .types import Atom, Constant, Predicate, RuleTemplate
 
 
 class Clause:
@@ -41,17 +41,22 @@ class Clause:
 
 
 class LanguageModel:
-    def __init__(self, target: Predicate, preds_ext: Set[Predicate]):
+    def __init__(self, target: Predicate, preds_ext: List[Predicate], constants: List[Constant]):
         self._target = target
         self._preds_ext = preds_ext
+        self._constants = constants
 
     @property
     def target(self) -> Predicate:
         return self._target
 
     @property
-    def preds_ext(self) -> Set[Predicate]:
+    def preds_ext(self) -> List[Predicate]:
         return self._preds_ext
+
+    @property
+    def constants(self) -> List[Constant]:
+        return self._constants
 
 
 class ProgramTemplate:

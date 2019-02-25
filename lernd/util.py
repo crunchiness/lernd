@@ -52,3 +52,7 @@ def ground_atom2str(ground_atom: GroundAtom) -> str:
     pred_name, pred_arity = pred
     assert pred_arity == len(consts), 'Too many arguments for the predicate!'
     return '{0}({1})'.format(pred_name, ','.join(consts))
+
+
+def arity(pred: Predicate) -> int:
+    return pred[1]

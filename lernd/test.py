@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import lernd.util
+from lernd.classes import LanguageModel, ProgramTemplate
 
 __author__ = "Ingvaras Merkys"
 
@@ -36,7 +38,7 @@ class TestMain(unittest.TestCase):
 
     def test_arity(self):
         p = Predicate(('p', 2))
-        self.assertEqual(m.arity(p), 2)
+        self.assertEqual(lernd.util.arity(p), 2)
 
     def test_Clause_str(self):
         pred1 = Atom((Predicate(('p', 2)), (Variable('X'), Variable('Y'))))
@@ -293,6 +295,30 @@ class TestMain(unittest.TestCase):
             self.assertTrue(True)
         except AssertionError:
             self.assertTrue(False)
+
+    def test_get_ground_atoms(self):
+        target_pred = u.str2pred('q/2')
+        preds_ext = [u.str2pred('p/0')]
+        preds_aux = [u.str2pred('t/1')]
+        l = LanguageModel(target_pred, preds_ext, [Constant(x) for x in ['a', 'b', 'c']])
+        pi = ProgramTemplate(preds_aux, None)
+        f = u.str2ground_atom
+        expected_ground_atoms = [
+            f('p()'),
+            f('t(a)'),
+            f('t(b)'),
+            f('t(c)'),
+            f('q(a,a)'),
+            f('q(a,b)'),
+            f('q(a,c)'),
+            f('q(b,a)'),
+            f('q(b,b)'),
+            f('q(b,c)'),
+            f('q(c,a)'),
+            f('q(c,b)'),
+            f('q(c,c)')
+        ]
+        self.assertEqual(m.get_ground_atoms(l, pi), expected_ground_atoms)
 
 
 if __name__ == '__main__':
