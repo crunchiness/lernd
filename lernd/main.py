@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-import itertools
 
 __author__ = "Ingvaras Merkys"
 
+import itertools
 import string
 from functools import reduce
 from itertools import product
@@ -57,39 +57,8 @@ def get_ground_atoms(l: LanguageModel, pi: ProgramTemplate) -> List[GroundAtom]:
     return ground_atoms
 
 
-def f_extract(valuation: np.ndarray, gamma: GroundAtom, ground_atoms: List[GroundAtom]) -> float:
-    # differentiable operation
-    # extracts valuation value of a particular atom gamma
-    return valuation[ground_atoms.index(gamma)]
-
-
-def f_generate(pi: ProgramTemplate,
-               l: LanguageModel
-               ) -> Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]]:
-    # non-differentiable operation
-    # returns a set of clauses
-    preds_int = pi.preds_aux + [target]  # type: List[Predicate]
-    clauses = {}
-    for pred in preds_int:
-        tau1, tau2 = rules[pred]
-        clauses[pred] = ((cl(preds_int, l.preds_ext, pred, tau1), tau1), (cl(preds_int, l.preds_ext, pred, tau2), tau2))
-    return clauses
-
-
-# p(lambda|alpha,W,Pi,L,B) - p1 - given particular atom, weights, program template, language model, and background
-# assumptions gives the probability of label of alpha (which is 0 or 1).
-def p1(alpha: GroundAtom,
-       weights: Dict[Predicate, np.matrix],
-       l: LanguageModel,
-       background_axioms: List[GroundAtom],
-       ground_atoms: List[GroundAtom],
-       clauses:  Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]]
-       ) -> float:
-
-    print('f_inferring...')
-    f_infer_result = f_infer(f_convert(background_axioms, ground_atoms), clauses, weights, forward_chaining_steps, l, ground_atoms)
-
-    return f_extract(f_infer_result, alpha, ground_atoms)
+print('Generating ground atoms...')
+ground_atoms = get_ground_atoms(language_model, program_template)
 
 
 # loss is cross-entropy
@@ -98,41 +67,43 @@ def loss(big_lambda: Dict[GroundAtom, int],
          l: LanguageModel,
          background_axioms: List[GroundAtom],
          ground_atoms: List[GroundAtom],
-         clauses:  Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]]
+         program_template: ProgramTemplate
          ):
     return - np.mean((
-        small_lambda * np.log(p1(alpha, weights, l, background_axioms, ground_atoms, clauses)) +
-        (1 - small_lambda) * np.log(1 - p1(alpha, weights, l, background_axioms, ground_atoms, clauses))
+        small_lambda * np.log(p1(alpha, weights, l, background_axioms, ground_atoms, program_template)) +
+        (1 - small_lambda) * np.log(1 - p1(alpha, weights, l, background_axioms, ground_atoms, program_template))
         for (alpha, small_lambda) in big_lambda.items()
     ))
 
 
-def generate_weights(clauses: Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]]
-                     ) -> Dict[Predicate, np.matrix]:
-    weights_dict = {}
-    for pred, ((clauses_1, tau1), (clauses_2, tau2)) in clauses.items():
-        weights_dict[pred] = np.matrix(np.zeros(shape=(len(clauses_1), len(clauses_2))))  # TODO: initialize randomly
-    return weights_dict
+# p(lambda|alpha,W,Pi,L,B) - p1 - given particular atom, weights, program template, language model, and background
+# assumptions gives the probability of label of alpha (which is 0 or 1).
+def p1(alpha: GroundAtom,
+       weights: Dict[Predicate, np.matrix],
+       language_model: LanguageModel,
+       background_axioms: List[GroundAtom],
+       ground_atoms: List[GroundAtom],
+       program_template: ProgramTemplate
+       ) -> float:
+    return f_extract(f_infer(f_convert(background_axioms, ground_atoms), f_generate(program_template, language_model), weights, forward_chaining_steps, language_model, ground_atoms), alpha, ground_atoms)
 
 
-# print('Generating clauses for each predicate...')
-# clauses = f_generate(pi, l)
-#
-# print('Initializing weights...')
-# weights = generate_weights(clauses)
-#
-# print('Generating ground atoms...')
-# ground_atoms = get_ground_atoms(l, pi)
+def f_extract(valuation: np.ndarray, gamma: GroundAtom, ground_atoms: List[GroundAtom]) -> float:
+    # differentiable operation
+    # extracts valuation value of a particular atom gamma
+    return valuation[ground_atoms.index(gamma)]
 
 
 def f_infer(initial_valuations: np.ndarray,  # 1D array of ground atom valuations
-            clauses: Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]],  # indexed set of generated clauses
+            clauses: Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]],  #
+            # indexed set of generated clauses
             weights: Dict[Predicate, np.matrix],
             T: int,
             l: LanguageModel,
             ground_atoms: List[GroundAtom]) -> np.ndarray:
     # differentiable operation
-    a = initial_valuations  #
+    print('f_inferring...')
+    a = initial_valuations
     for t in range(T):
         bt = np.zeros(np.shape(initial_valuations))
         # lists of clauses are of different sizes
@@ -148,19 +119,22 @@ def f_infer(initial_valuations: np.ndarray,  # 1D array of ground atom valuation
     return a
 
 
-def G(f1: np.ndarray, f2: np.ndarray) -> np.ndarray:
-    return np.maximum(f1, f2)
+def fc(a, c: Clause, ground_atoms: List[GroundAtom], constants, tau: RuleTemplate) -> np.ndarray:
+    def gather2(a: np.ndarray, x: np.ndarray):
+        # a is a vector, x is a matrix
+        return a[x]
 
-
-def f_amalgamate(x: np.ndarray, y: np.ndarray) -> np.ndarray:
-    # probabilistic sum (t-conorm)
-    return x + y - np.multiply(x, y)
-
-
-def f_convert(background_axioms: List[GroundAtom], ground_atoms: List[GroundAtom]) -> np.ndarray:
-    # non-differentiable operation
-    # order must be the same as in ground_atoms
-    return np.array([1 if gamma in background_axioms else 0 for gamma in ground_atoms])
+    def fuzzy_and(y1: np.ndarray, y2: np.ndarray):
+        # product t-norm, element-wise multiplication
+        return np.multiply(y1, y2)
+    xc = make_xc(c, ground_atoms)
+    xc_tensor = make_xc_tensor(xc, constants, tau, ground_atoms)
+    x1 = xc_tensor[:, :, 0]
+    x2 = xc_tensor[:, :, 1]
+    y1 = gather2(a, x1)
+    y2 = gather2(a, x2)
+    z = fuzzy_and(y1, y2)
+    return np.max(z, axis=1)
 
 
 def make_xc(c: Clause, ground_atoms: List[GroundAtom]) -> List[Tuple[GroundAtom, List[Tuple[int, ...]]]]:
@@ -247,22 +221,32 @@ def make_xc_tensor(xc: List[Tuple[GroundAtom, List[Tuple[int, ...]]]], constants
     return xc_tensor
 
 
-def fc(a, c: Clause, ground_atoms: List[GroundAtom], constants, tau: RuleTemplate) -> np.ndarray:
-    def gather2(a: np.ndarray, x: np.ndarray):
-        # a is a vector, x is a matrix
-        return a[x]
+def G(f1: np.ndarray, f2: np.ndarray) -> np.ndarray:
+    return np.maximum(f1, f2)
 
-    def fuzzy_and(y1: np.ndarray, y2: np.ndarray):
-        # product t-norm, element-wise multiplication
-        return np.multiply(y1, y2)
-    xc = make_xc(c, ground_atoms)
-    xc_tensor = make_xc_tensor(xc, constants, tau, ground_atoms)
-    x1 = xc_tensor[:, :, 0]
-    x2 = xc_tensor[:, :, 1]
-    y1 = gather2(a, x1)
-    y2 = gather2(a, x2)
-    z = fuzzy_and(y1, y2)
-    return np.max(z, axis=1)
+
+def f_amalgamate(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    # probabilistic sum (t-conorm)
+    return x + y - np.multiply(x, y)
+
+
+def f_convert(background_axioms: List[GroundAtom], ground_atoms: List[GroundAtom]) -> np.ndarray:
+    # non-differentiable operation
+    # order must be the same as in ground_atoms
+    return np.array([1 if gamma in background_axioms else 0 for gamma in ground_atoms])
+
+
+def f_generate(pi: ProgramTemplate,
+               l: LanguageModel
+               ) -> Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]]:
+    # non-differentiable operation
+    # returns a set of clauses
+    preds_int = pi.preds_aux + [target]  # type: List[Predicate]
+    clauses = {}
+    for pred in preds_int:
+        tau1, tau2 = rules[pred]
+        clauses[pred] = ((cl(preds_int, l.preds_ext, pred, tau1), tau1), (cl(preds_int, l.preds_ext, pred, tau2), tau2))
+    return clauses
 
 
 def cl(preds_int: List[Predicate], preds_ext: List[Predicate], pred: Predicate, tau: RuleTemplate) -> OrderedSet:
@@ -303,26 +287,9 @@ def cl(preds_int: List[Predicate], preds_ext: List[Predicate], pred: Predicate, 
     return clauses
 
 
-def check_int_flag_satisfied(clause: Clause, int_: bool, preds_int: List[Predicate]) -> bool:
-    # if intensional predicate required:
-    if int_:
-        for atom in clause.body:
-            if atom[0] in preds_int:
-                return True
-        return False
-    # otherwise intensional predicates not in possible_preds
-    return True
-
-
-def check_circular(clause: Clause) -> bool:
-    """
-    Returns True if the clause is circular (head atom appears in the body)
-    """
-    head = clause.head  # type: Atom
-    atoms = clause.body  # type: List[Atom]
-    if head in atoms:
-        return True
-    return False
+def pred_with_vars_generator(predicate: Predicate, vars: List[Variable]) -> Iterable[Atom]:
+    for combination in product(vars, repeat=predicate[1]):
+        yield Atom((predicate, tuple(combination)))
 
 
 def check_clause_unsafe(clause: Clause) -> bool:
@@ -339,6 +306,35 @@ def check_clause_unsafe(clause: Clause) -> bool:
     return False
 
 
-def pred_with_vars_generator(predicate: Predicate, vars: List[Variable]) -> Iterable[Atom]:
-    for combination in product(vars, repeat=predicate[1]):
-        yield Atom((predicate, tuple(combination)))
+def check_circular(clause: Clause) -> bool:
+    """
+    Returns True if the clause is circular (head atom appears in the body)
+    """
+    head = clause.head  # type: Atom
+    atoms = clause.body  # type: List[Atom]
+    if head in atoms:
+        return True
+    return False
+
+
+def check_int_flag_satisfied(clause: Clause, int_: bool, preds_int: List[Predicate]) -> bool:
+    # if intensional predicate required:
+    if int_:
+        for atom in clause.body:
+            if atom[0] in preds_int:
+                return True
+        return False
+    # otherwise intensional predicates not in possible_preds
+    return True
+
+
+# def generate_weights(clauses: Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]]
+#                      ) -> Dict[Predicate, np.matrix]:
+#     weights_dict = {}
+#     for pred, ((clauses_1, tau1), (clauses_2, tau2)) in clauses.items():
+#         weights_dict[pred] = np.matrix(np.zeros(shape=(len(clauses_1), len(clauses_2))))  # TODO: initialize randomly
+#     return weights_dict
+#
+#
+# print('Initializing weights...')
+# weights = generate_weights(clauses)

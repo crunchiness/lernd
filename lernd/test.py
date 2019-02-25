@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-import lernd.util
-from lernd.classes import LanguageModel, ProgramTemplate
 
 __author__ = "Ingvaras Merkys"
 
 import unittest
+
 import numpy as np
 
+import lernd.util
 from lernd import classes as c
 from lernd import main as m
 from lernd import util as u
+from lernd.classes import LanguageModel, ProgramTemplate
 from .types import Atom, Constant, Predicate, RuleTemplate, Variable
 
 
@@ -74,7 +75,7 @@ class TestMain(unittest.TestCase):
             self.assertEqual(result, False)
 
     def test_cl_1(self):
-        preds_ext = {u.str2pred('p/2')}
+        preds_ext = [u.str2pred('p/2')]
         preds_int = [u.str2pred('q/2')]
         pred = u.str2pred('q/2')
         tau = RuleTemplate((0, False))
@@ -93,7 +94,7 @@ class TestMain(unittest.TestCase):
             self.assertEqual(clause.__str__(), expected_clauses[i])
 
     def test_cl_2(self):
-        preds_ext = {u.str2pred('p/2')}
+        preds_ext = [u.str2pred('p/2')]
         preds_int = [u.str2pred('q/2')]
         pred = u.str2pred('q/2')
         tau = RuleTemplate((1, True))
@@ -301,7 +302,7 @@ class TestMain(unittest.TestCase):
         preds_ext = [u.str2pred('p/0')]
         preds_aux = [u.str2pred('t/1')]
         l = LanguageModel(target_pred, preds_ext, [Constant(x) for x in ['a', 'b', 'c']])
-        pi = ProgramTemplate(preds_aux, None)
+        pi = ProgramTemplate(preds_aux, {}, 0)
         f = u.str2ground_atom
         expected_ground_atoms = [
             f('p()'),
