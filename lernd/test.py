@@ -6,8 +6,8 @@ import unittest
 
 import numpy as np
 
-import lernd.util
 from lernd import classes as c
+from lernd import generator as g
 from lernd import main as m
 from lernd import util as u
 from lernd.classes import LanguageModel, ProgramTemplate
@@ -35,43 +35,25 @@ class TestUtil(unittest.TestCase):
             self.assertEqual(atom_str, u.atom2str(atom))
 
 
-class TestMain(unittest.TestCase):
-
-    def test_arity(self):
-        p = Predicate(('p', 2))
-        self.assertEqual(lernd.util.arity(p), 2)
-
-    def test_Clause_str(self):
-        pred1 = Atom((Predicate(('p', 2)), (Variable('X'), Variable('Y'))))
-        pred2 = Atom((Predicate(('q', 2)), (Variable('X'), Variable('Z'))))
-        pred3 = Atom((Predicate(('t', 2)), (Variable('Y'), Variable('X'))))
-        clause = c.Clause(pred1, (pred2, pred3))
-        self.assertEqual(clause.__str__(), 'p(X,Y)<-q(X,Z), t(Y,X)')
-
-    def test_Clause_from_str(self):
-        clause_strs = ['p(X,Y)<-q(X,Z), t(Y,X)']
-        for clause_str in clause_strs:
-            clause = c.Clause.from_str(clause_str)
-            self.assertEqual(clause_str, clause.__str__())
-
+class TestGenerator(unittest.TestCase):
     def test_check_clause_unsafe(self):
         safe_clauses = ['p(X)<-q(X)', 'p(X)<-q(X), q(Y)']
         unsafe_clauses = ['p(X)<-q(Y)', 'p(X)<-q(Z), q(Y)']
         for safe_clause_str in safe_clauses:
-            result = m.check_clause_unsafe(c.Clause.from_str(safe_clause_str))
+            result = g.check_clause_unsafe(c.Clause.from_str(safe_clause_str))
             self.assertEqual(result, False)
         for unsafe_clause_str in unsafe_clauses:
-            result = m.check_clause_unsafe(c.Clause.from_str(unsafe_clause_str))
+            result = g.check_clause_unsafe(c.Clause.from_str(unsafe_clause_str))
             self.assertEqual(result, True)
 
     def test_check_circular(self):
         circular_clauses = ['p(X,Y)<-p(X,Y), q(Y)']
         uncircular_clauses = ['p(X,Y)<-p(Y,X), q(Y)']
         for circular_clause_str in circular_clauses:
-            result = m.check_circular(c.Clause.from_str(circular_clause_str))
+            result = g.check_circular(c.Clause.from_str(circular_clause_str))
             self.assertEqual(result, True)
         for uncircular_clause_str in uncircular_clauses:
-            result = m.check_circular(c.Clause.from_str(uncircular_clause_str))
+            result = g.check_circular(c.Clause.from_str(uncircular_clause_str))
             self.assertEqual(result, False)
 
     def test_cl_1(self):
@@ -89,7 +71,7 @@ class TestMain(unittest.TestCase):
             'q(A,B)<-p(B,A), p(B,A)',
             'q(A,B)<-p(B,A), p(B,B)'
         ]
-        clauses = m.cl(preds_int, preds_ext, pred, tau)
+        clauses = g.cl(preds_int, preds_ext, pred, tau)
         for i, clause in enumerate(clauses):
             self.assertEqual(clause.__str__(), expected_clauses[i])
 
@@ -117,10 +99,30 @@ class TestMain(unittest.TestCase):
             'q(A,B)<-p(A,C), q(C,B)'
         ]
         expected_total = 58
-        clauses = m.cl(preds_int, preds_ext, pred, tau)
+        clauses = g.cl(preds_int, preds_ext, pred, tau)
         self.assertEqual(len(clauses), expected_total)
         for clause, expected_clause in zip(clauses, expected_clauses):
             self.assertEqual(clause.__str__(), expected_clause)
+
+
+class TestMain(unittest.TestCase):
+
+    def test_arity(self):
+        p = Predicate(('p', 2))
+        self.assertEqual(u.arity(p), 2)
+
+    def test_Clause_str(self):
+        pred1 = Atom((Predicate(('p', 2)), (Variable('X'), Variable('Y'))))
+        pred2 = Atom((Predicate(('q', 2)), (Variable('X'), Variable('Z'))))
+        pred3 = Atom((Predicate(('t', 2)), (Variable('Y'), Variable('X'))))
+        clause = c.Clause(pred1, (pred2, pred3))
+        self.assertEqual(clause.__str__(), 'p(X,Y)<-q(X,Z), t(Y,X)')
+
+    def test_Clause_from_str(self):
+        clause_strs = ['p(X,Y)<-q(X,Z), t(Y,X)']
+        for clause_str in clause_strs:
+            clause = c.Clause.from_str(clause_str)
+            self.assertEqual(clause_str, clause.__str__())
 
     def test_xc_rec(self):
         ground_atoms = list(map(u.str2ground_atom, [

@@ -3,11 +3,7 @@
 __author__ = "Ingvaras Merkys"
 
 import itertools
-import string
-from functools import reduce
-from itertools import product
-from operator import add
-from typing import List, Iterable, Tuple, Dict
+from typing import List, Tuple, Dict
 
 import numpy as np
 from ordered_set import OrderedSet
@@ -15,6 +11,7 @@ from scipy.special import softmax
 
 import lernd.util as u
 from .classes import Clause, ILP, LanguageModel, ProgramTemplate
+from .generator import f_generate
 from .types import Atom, Constant, GroundAtom, Predicate, RuleTemplate, Variable
 
 target = Predicate(('q', 2))
@@ -236,96 +233,7 @@ def f_convert(background_axioms: List[GroundAtom], ground_atoms: List[GroundAtom
     return np.array([1 if gamma in background_axioms else 0 for gamma in ground_atoms])
 
 
-def f_generate(pi: ProgramTemplate,
-               l: LanguageModel
-               ) -> Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]]:
-    # non-differentiable operation
-    # returns a set of clauses
-    preds_int = pi.preds_aux + [target]  # type: List[Predicate]
-    clauses = {}
-    for pred in preds_int:
-        tau1, tau2 = rules[pred]
-        clauses[pred] = ((cl(preds_int, l.preds_ext, pred, tau1), tau1), (cl(preds_int, l.preds_ext, pred, tau2), tau2))
-    return clauses
 
-
-def cl(preds_int: List[Predicate], preds_ext: List[Predicate], pred: Predicate, tau: RuleTemplate) -> OrderedSet:
-    """Generates all possible clauses adhering the restrictions.
-    Restrictions:
-    1. Only clauses of atoms involving free variables. No constants in any of the clauses.
-    2. Only predicates of arity 0-2.
-    3. Exactly 2 atoms in the body.
-    4. No unsafe (which have a variable used in the head but not the body)
-    5. No circular (head atom appears in the body)
-    6. No duplicate (same but different order of body atoms)
-    7. No those that contain an intensional predicate in the clause body, even though int flag was set to 0, false.
-    """
-    v, int_ = tau  # number of exist. quantified variables allowed, whether intensional predicates allowed in the body
-
-    pred_arity = pred[1]
-    total_vars = pred_arity + v
-
-    assert total_vars <= len(string.ascii_uppercase), 'Handling of more than 26 variables not implemented!'
-
-    vars = [Variable(string.ascii_uppercase[i]) for i in range(total_vars)]
-    head = Atom((pred, tuple([vars[i] for i in range(pred_arity)])))
-
-    possible_preds = list(preds_ext) + preds_int if int_ else list(preds_ext)  # type: List[Predicate]
-
-    clauses = OrderedSet()
-    for pred1, pred2 in product(possible_preds, possible_preds):
-        for pred1_full in pred_with_vars_generator(pred1, vars):
-            for pred2_full in pred_with_vars_generator(pred2, vars):
-                clause = Clause(head, tuple(sorted([pred1_full, pred2_full])))
-                if check_clause_unsafe(clause):
-                    continue
-                if check_circular(clause):
-                    continue
-                if not check_int_flag_satisfied(clause, int_, preds_int):
-                    continue
-                clauses.add(clause)
-    return clauses
-
-
-def pred_with_vars_generator(predicate: Predicate, vars: List[Variable]) -> Iterable[Atom]:
-    for combination in product(vars, repeat=predicate[1]):
-        yield Atom((predicate, tuple(combination)))
-
-
-def check_clause_unsafe(clause: Clause) -> bool:
-    """
-    Returns True if clause is unsafe (has a variable used in the head but not the body)
-    """
-    head_vars = clause.head[1]  # type: List[Variable]
-    preds = clause.body  # type: Tuple[Atom, ...]
-    preds_list = list(preds)
-    body_vars = reduce(add, map(lambda x: list(x[1]), preds_list))
-    for head_var in head_vars:
-        if head_var not in body_vars:
-            return True
-    return False
-
-
-def check_circular(clause: Clause) -> bool:
-    """
-    Returns True if the clause is circular (head atom appears in the body)
-    """
-    head = clause.head  # type: Atom
-    atoms = clause.body  # type: List[Atom]
-    if head in atoms:
-        return True
-    return False
-
-
-def check_int_flag_satisfied(clause: Clause, int_: bool, preds_int: List[Predicate]) -> bool:
-    # if intensional predicate required:
-    if int_:
-        for atom in clause.body:
-            if atom[0] in preds_int:
-                return True
-        return False
-    # otherwise intensional predicates not in possible_preds
-    return True
 
 
 # def generate_weights(clauses: Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]]
