@@ -5,7 +5,7 @@ __author__ = "Ingvaras Merkys"
 from typing import Tuple, List, Dict
 
 from lernd import util as u
-from .types import Atom, Constant, Predicate, RuleTemplate
+from .types import Atom, Constant, GroundAtom, Predicate, RuleTemplate
 
 
 class Clause:
@@ -60,9 +60,14 @@ class LanguageModel:
 
 
 class ProgramTemplate:
-    def __init__(self, preds_aux: List[Predicate], rules: Dict[Predicate, Tuple[RuleTemplate, RuleTemplate]]):
+    def __init__(self,
+                 preds_aux: List[Predicate],                                 # Pa
+                 rules: Dict[Predicate, Tuple[RuleTemplate, RuleTemplate]],  # rules
+                 forward_chaining_steps: int                                 # T
+                 ):
         self._preds_aux = preds_aux
         self._rules = rules
+        self._forward_chaining_steps = forward_chaining_steps
 
     @property
     def preds_aux(self) -> List[Predicate]:
@@ -71,3 +76,36 @@ class ProgramTemplate:
     @property
     def rules(self) -> Dict[Predicate, Tuple[RuleTemplate, RuleTemplate]]:
         return self._rules
+
+    @property
+    def forward_chaining_steps(self):
+        return self._forward_chaining_steps
+
+
+class ILP:
+    def __init__(self,
+                 language_model: LanguageModel,        # L
+                 background_axioms: List[GroundAtom],  # B
+                 positive_examples: List[GroundAtom],  # P
+                 negative_examples: List[GroundAtom]   # N
+                 ):
+        self._language_model = language_model
+        self._background_axioms = background_axioms
+        self._positive_examples = positive_examples
+        self._negative_examples = negative_examples
+
+    @property
+    def language_model(self) -> LanguageModel:
+        return self._language_model
+
+    @property
+    def background_axioms(self) -> List[GroundAtom]:
+        return self._background_axioms
+
+    @property
+    def positive_examples(self) -> List[GroundAtom]:
+        return self._positive_examples
+
+    @property
+    def negative_examples(self) -> List[GroundAtom]:
+        return self._negative_examples

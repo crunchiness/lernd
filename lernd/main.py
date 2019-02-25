@@ -14,39 +14,36 @@ from ordered_set import OrderedSet
 from scipy.special import softmax
 
 import lernd.util as u
-from .classes import Clause, LanguageModel, ProgramTemplate
+from .classes import Clause, ILP, LanguageModel, ProgramTemplate
 from .types import Atom, Constant, GroundAtom, Predicate, RuleTemplate, Variable
 
-# ILP problem
-# Language model
 target = Predicate(('q', 2))
-P_e = set([])  # Set of extensional predicates
-arity_e = None
-C = set([])  # Set of constants
+preds_ext = []  # Set of extensional predicates
+constants = []  # Set of constants
+language_model = LanguageModel(target, preds_ext, constants)
+background_axioms = []  # Background assumptions
+positive_examples = []  # Positive examples
+negative_examples = []  # Negative examples
+ilp_problem = ILP(language_model, background_axioms, positive_examples, negative_examples)
 
-# L = (target, P_e, arity_e, C)  # type: Tuple[Predicate, Set[Predicate], None, Set] # Language model
-l = LanguageModel(target, P_e, C)
+preds_aux = []
+rules = {}  # Dict (predicate p: tuple of rule templates (tau1, tau2))
+forward_chaining_steps = 0
+program_template = ProgramTemplate(preds_aux, rules, forward_chaining_steps)
 
-
-B = None  # Background assumptions
-P = []  # Positive examples
-N = []  # Negative examples
-
-# ILP = (L, B, P, N)  # ILP problem
-
-# Program template
-P_a = None
-arity_a = None
-rules = None  # Dict (predicate p: tuple of rule templates (tau1, tau2))
-T = None
-
-# pi = (P_a, arity_a, rules, T)  # Program template
-pi = ProgramTemplate(P_a, rules)
+weights = {}  # type: Dict[Predicate, np.matrix] # set of clause weights
 
 
-W = {}  # type: Dict[Predicate, np.matrix] # set of clause weights
+def make_lambda(positive_examples: List[GroundAtom], negative_examples: List[GroundAtom]) -> Dict[GroundAtom, int]:
+    result = {}
+    for ground_atom in positive_examples:
+        result[ground_atom] = 1
+    for ground_atom in negative_examples:
+        result[ground_atom] = 0
+    return result
 
-Lambda = [(gamma, 1) for gamma in P] + [(gamma, 0) for gamma in N]
+
+big_lambda = make_lambda(positive_examples, negative_examples)
 
 
 def get_ground_atoms(l: LanguageModel, pi: ProgramTemplate) -> List[GroundAtom]:
@@ -60,15 +57,15 @@ def get_ground_atoms(l: LanguageModel, pi: ProgramTemplate) -> List[GroundAtom]:
     return ground_atoms
 
 
-# p(lambda|alpha,W,Pi,L,B) - p1 - given particular atom, weights, program template, language model, and background
-# assumptions gives the probability of label of alpha (which is 0 or 1).
-def f_extract(valuation, gamma):
+def f_extract(valuation: np.ndarray, gamma: GroundAtom, ground_atoms: List[GroundAtom]) -> float:
     # differentiable operation
     # extracts valuation value of a particular atom gamma
-    pass
+    return valuation[ground_atoms.index(gamma)]
 
 
-def f_generate(pi: ProgramTemplate, l: LanguageModel) -> Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]]:
+def f_generate(pi: ProgramTemplate,
+               l: LanguageModel
+               ) -> Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]]:
     # non-differentiable operation
     # returns a set of clauses
     preds_int = pi.preds_aux + [target]  # type: List[Predicate]
@@ -79,20 +76,35 @@ def f_generate(pi: ProgramTemplate, l: LanguageModel) -> Dict[Predicate, Tuple[T
     return clauses
 
 
-def p1(lambda_, alpha, W, pi: ProgramTemplate, l: LanguageModel, background_axioms: List[GroundAtom]):
-    print('Generating ground atoms...')
-    ground_atoms = get_ground_atoms(l, pi)
-
-    print('Generating clauses for each predicate...')
-    clauses = f_generate(pi, l)
-
-    print('Initializing weights...')
-    weights = generate_weights(clauses)
+# p(lambda|alpha,W,Pi,L,B) - p1 - given particular atom, weights, program template, language model, and background
+# assumptions gives the probability of label of alpha (which is 0 or 1).
+def p1(alpha: GroundAtom,
+       weights: Dict[Predicate, np.matrix],
+       l: LanguageModel,
+       background_axioms: List[GroundAtom],
+       ground_atoms: List[GroundAtom],
+       clauses:  Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]]
+       ) -> float:
 
     print('f_inferring...')
-    f_infer_result = f_infer(f_convert(background_axioms, ground_atoms), clauses, weights, T, l, ground_atoms)
+    f_infer_result = f_infer(f_convert(background_axioms, ground_atoms), clauses, weights, forward_chaining_steps, l, ground_atoms)
 
-    return f_extract(f_infer_result, alpha)
+    return f_extract(f_infer_result, alpha, ground_atoms)
+
+
+# loss is cross-entropy
+def loss(big_lambda: Dict[GroundAtom, int],
+         weights: Dict[Predicate, np.matrix],
+         l: LanguageModel,
+         background_axioms: List[GroundAtom],
+         ground_atoms: List[GroundAtom],
+         clauses:  Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]]
+         ):
+    return - np.mean((
+        small_lambda * np.log(p1(alpha, weights, l, background_axioms, ground_atoms, clauses)) +
+        (1 - small_lambda) * np.log(1 - p1(alpha, weights, l, background_axioms, ground_atoms, clauses))
+        for (alpha, small_lambda) in big_lambda.items()
+    ))
 
 
 def generate_weights(clauses: Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]]
@@ -101,6 +113,16 @@ def generate_weights(clauses: Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTempla
     for pred, ((clauses_1, tau1), (clauses_2, tau2)) in clauses.items():
         weights_dict[pred] = np.matrix(np.zeros(shape=(len(clauses_1), len(clauses_2))))  # TODO: initialize randomly
     return weights_dict
+
+
+# print('Generating clauses for each predicate...')
+# clauses = f_generate(pi, l)
+#
+# print('Initializing weights...')
+# weights = generate_weights(clauses)
+#
+# print('Generating ground atoms...')
+# ground_atoms = get_ground_atoms(l, pi)
 
 
 def f_infer(initial_valuations: np.ndarray,  # 1D array of ground atom valuations
@@ -317,32 +339,6 @@ def check_clause_unsafe(clause: Clause) -> bool:
     return False
 
 
-def generate_predicate(possible_preds: List[Predicate], vars: List[Variable]):
-    for pred in possible_preds:
-        for pred_full in pred_with_vars_generator(pred, vars):
-            print(u.atom2str(pred_full))
-
-
-def generate_2_predicates(possible_preds: list, vars: list):
-    for pred1, pred2 in product(possible_preds, possible_preds):
-        for pred1_full, pred2_full in product(pred_with_vars_generator(pred1, vars), pred_with_vars_generator(pred2, vars)):
-            print(u.atom2str(pred1_full) + ', ' + u.atom2str(pred2_full))
-
-
 def pred_with_vars_generator(predicate: Predicate, vars: List[Variable]) -> Iterable[Atom]:
     for combination in product(vars, repeat=predicate[1]):
         yield Atom((predicate, tuple(combination)))
-
-
-p = ['a/2', 'b/1', 'c/0', 'd/2']
-vars = ['X', 'Y', 'Z']
-# generate_predicate(list(map(predicate_from_str, p)), list(map(lambda x: Variable(x), vars)))
-# generate_2_predicates(list(map(str2pred, p)), list(map(lambda x: Variable(x), vars)))
-
-
-# loss is cross-entropy
-def loss(Lambda, W, Pi, L, B):
-    return - np.mean([
-        lambda_ * np.log(p1(lambda_, alpha, W, Pi, L, B)) + (1 - lambda_) * np.log(1 - p1(lambda_, alpha, W, Pi, L, B))
-        for (alpha, lambda_) in Lambda
-    ])
