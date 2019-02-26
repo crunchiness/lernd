@@ -21,11 +21,15 @@ def make_lambda(positive_examples: List[GroundAtom], negative_examples: List[Gro
     return result
 
 
-def generate_weights(clauses: Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]]
-                     ) -> Dict[Predicate, np.matrix]:
+def generate_weight_matrices(
+        clauses: Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]],
+        standard_deviation: float,
+        mean: float = 0
+        ) -> Dict[Predicate, np.matrix]:
     weights_dict = {}
     for pred, ((clauses_1, tau1), (clauses_2, tau2)) in clauses.items():
-        weights_dict[pred] = np.matrix(np.zeros(shape=(len(clauses_1), len(clauses_2))))  # TODO: initialize randomly
+        weights_dict[pred] = np.matrix(np.random.normal(mean, standard_deviation, (len(clauses_1), len(clauses_2))))
+
     return weights_dict
 
 
@@ -46,7 +50,9 @@ if __name__ == '__main__':
     forward_chaining_steps = 0
     program_template = ProgramTemplate(preds_aux, rules, forward_chaining_steps)
 
-    weights = {}  # type: Dict[Predicate, np.matrix] # set of clause weights
     big_lambda = make_lambda(positive_examples, negative_examples)
 
     lernd_object = Lernd(forward_chaining_steps, language_model, program_template)
+
+    print('Generating weight matrices')
+    weights = generate_weight_matrices(lernd_object.clauses, standard_deviation=0.5)  # type: Dict[Predicate, np.matrix]
