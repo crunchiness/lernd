@@ -12,20 +12,21 @@ from lernd.classes import Clause, LanguageModel
 from lernd.types import Atom, Constant, GroundAtom, Predicate, RuleTemplate, Variable
 
 
-def f_infer(initial_valuations: np.ndarray,  # 1D array of ground atom valuations
+def f_infer(initial_valuation: np.ndarray,  # 1D array of ground atom valuations
             clauses: Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]],
             weights: Dict[Predicate, np.matrix],
             forward_chaining_steps: int,
             language_model: LanguageModel,
             ground_atoms: List[GroundAtom]) -> np.ndarray:
     # differentiable operation
-    a = initial_valuations
+    a = initial_valuation
     for t in range(forward_chaining_steps):
-        bt = np.zeros(np.shape(initial_valuations))
+        print('Inference step:', t)
+        bt = np.zeros(np.shape(initial_valuation))
         # lists of clauses are of different sizes
         for pred, ((clauses_1, tau1), (clauses_2, tau2)) in clauses.items():
             sm = softmax(weights[pred])
-            bt = np.zeros(np.shape(initial_valuations))
+            bt = np.zeros(np.shape(initial_valuation))
             for j in range(len(clauses_1)):
                 f1jp = fc(a, clauses_1[j], ground_atoms, language_model.constants, tau1)
                 for k in range(len(clauses_2)):

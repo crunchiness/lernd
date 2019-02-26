@@ -9,13 +9,17 @@ import numpy as np
 from lernd import classes as c
 from lernd import generator as g
 from lernd import inferrer as i
-from lernd import main as m
+from lernd import lernd_loss as l
 from lernd import util as u
 from lernd.classes import LanguageModel, ProgramTemplate
 from .types import Atom, Constant, Predicate, RuleTemplate, Variable
 
 
 class TestUtil(unittest.TestCase):
+    def test_arity(self):
+        p = Predicate(('p', 2))
+        self.assertEqual(u.arity(p), 2)
+
     def test_atom2str(self):
         p = Predicate(('p', 2))
         var1 = Variable('X')
@@ -283,25 +287,7 @@ class TestInferrer(unittest.TestCase):
             self.assertTrue(False)
 
 
-class TestMain(unittest.TestCase):
-
-    def test_arity(self):
-        p = Predicate(('p', 2))
-        self.assertEqual(u.arity(p), 2)
-
-    def test_Clause_str(self):
-        pred1 = Atom((Predicate(('p', 2)), (Variable('X'), Variable('Y'))))
-        pred2 = Atom((Predicate(('q', 2)), (Variable('X'), Variable('Z'))))
-        pred3 = Atom((Predicate(('t', 2)), (Variable('Y'), Variable('X'))))
-        clause = c.Clause(pred1, (pred2, pred3))
-        self.assertEqual(clause.__str__(), 'p(X,Y)<-q(X,Z), t(Y,X)')
-
-    def test_Clause_from_str(self):
-        clause_strs = ['p(X,Y)<-q(X,Z), t(Y,X)']
-        for clause_str in clause_strs:
-            clause = c.Clause.from_str(clause_str)
-            self.assertEqual(clause_str, clause.__str__())
-
+class TestLerndLoss(unittest.TestCase):
     def test_get_ground_atoms(self):
         target_pred = u.str2pred('q/2')
         preds_ext = [u.str2pred('p/0')]
@@ -324,7 +310,23 @@ class TestMain(unittest.TestCase):
             f('q(c,b)'),
             f('q(c,c)')
         ]
-        self.assertEqual(m.get_ground_atoms(language_model, pi), expected_ground_atoms)
+        self.assertEqual(l.get_ground_atoms(language_model, pi), expected_ground_atoms)
+
+
+class TestClasses(unittest.TestCase):
+
+    def test_Clause_str(self):
+        pred1 = Atom((Predicate(('p', 2)), (Variable('X'), Variable('Y'))))
+        pred2 = Atom((Predicate(('q', 2)), (Variable('X'), Variable('Z'))))
+        pred3 = Atom((Predicate(('t', 2)), (Variable('Y'), Variable('X'))))
+        clause = c.Clause(pred1, (pred2, pred3))
+        self.assertEqual(clause.__str__(), 'p(X,Y)<-q(X,Z), t(Y,X)')
+
+    def test_Clause_from_str(self):
+        clause_strs = ['p(X,Y)<-q(X,Z), t(Y,X)']
+        for clause_str in clause_strs:
+            clause = c.Clause.from_str(clause_str)
+            self.assertEqual(clause_str, clause.__str__())
 
 
 if __name__ == '__main__':
