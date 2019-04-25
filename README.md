@@ -21,6 +21,10 @@ Activate the environment before running the project:
 $ conda activate py37
 ```
 
+Install requirements from `requirements.txt`:
+```bash
+$ pip install -r requirements.txt
+```
 Run tests
 =========
 

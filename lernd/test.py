@@ -314,7 +314,6 @@ class TestLerndLoss(unittest.TestCase):
 
 
 class TestClasses(unittest.TestCase):
-
     def test_Clause_str(self):
         pred1 = Atom((Predicate(('p', 2)), (Variable('X'), Variable('Y'))))
         pred2 = Atom((Predicate(('q', 2)), (Variable('X'), Variable('Z'))))

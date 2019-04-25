@@ -7,6 +7,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 from ordered_set import OrderedSet
 
+from lernd.classes import Clause
 from lernd.lernd_loss import Lernd
 from .classes import ILP, LanguageModel, ProgramTemplate
 from .types import GroundAtom, Predicate, RuleTemplate
@@ -22,7 +23,7 @@ def make_lambda(positive_examples: List[GroundAtom], negative_examples: List[Gro
 
 
 def generate_weight_matrices(
-        clauses: Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]],
+        clauses: Dict[Predicate, Tuple[Tuple['OrderedSet[Clause]', RuleTemplate], Tuple['OrderedSet[Clause]', RuleTemplate]]],
         standard_deviation: float,
         mean: float = 0
         ) -> Dict[Predicate, np.matrix]:
@@ -52,7 +53,7 @@ if __name__ == '__main__':
 
     big_lambda = make_lambda(positive_examples, negative_examples)
 
-    lernd_object = Lernd(forward_chaining_steps, language_model, program_template)
+    lernd_model = Lernd(forward_chaining_steps, language_model, program_template)
 
     print('Generating weight matrices')
-    weights = generate_weight_matrices(lernd_object.clauses, standard_deviation=0.5)  # type: Dict[Predicate, np.matrix]
+    weights = generate_weight_matrices(lernd_model.clauses, standard_deviation=0.5)  # type: Dict[Predicate, np.matrix]

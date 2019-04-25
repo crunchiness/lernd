@@ -16,7 +16,7 @@ from .types import Atom, Predicate, RuleTemplate, Variable
 
 def f_generate(program_template: ProgramTemplate,
                language_model: LanguageModel
-               ) -> Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]]:
+               ) -> Dict[Predicate, Tuple[Tuple['OrderedSet[Clause]', RuleTemplate], Tuple['OrderedSet[Clause]', RuleTemplate]]]:
     # non-differentiable operation
     preds_int = program_template.preds_aux + [language_model.target]  # type: List[Predicate]
     clauses = {}
@@ -29,7 +29,7 @@ def f_generate(program_template: ProgramTemplate,
     return clauses
 
 
-def cl(preds_int: List[Predicate], preds_ext: List[Predicate], pred: Predicate, tau: RuleTemplate) -> OrderedSet:
+def cl(preds_int: List[Predicate], preds_ext: List[Predicate], pred: Predicate, tau: RuleTemplate) -> 'OrderedSet[Clause]':
     """Generates all possible clauses adhering the restrictions.
     Restrictions:
     1. Only clauses of atoms involving free variables. No constants in any of the clauses.
