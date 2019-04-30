@@ -53,7 +53,9 @@ if __name__ == '__main__':
 
     big_lambda = make_lambda(positive_examples, negative_examples)
 
-    lernd_model = Lernd(forward_chaining_steps, language_model, program_template)
+    lernd_model = Lernd(forward_chaining_steps, language_model, program_template, background_axioms)
 
-    print('Generating weight matrices')
+    print('Generating weight matrices...')
     weights = generate_weight_matrices(lernd_model.clauses, standard_deviation=0.5)  # type: Dict[Predicate, np.matrix]
+
+    loss, loss_grad = lernd_model.grad(big_lambda, weights, background_axioms)

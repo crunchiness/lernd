@@ -39,7 +39,8 @@ def get_ground_atoms(language_model: LanguageModel, program_template: ProgramTem
 
 
 class Lernd:
-    def __init__(self, forward_chaining_steps: int, language_model: LanguageModel, program_template: ProgramTemplate):
+    def __init__(self, forward_chaining_steps: int, language_model: LanguageModel, program_template: ProgramTemplate,
+                 background_axioms: List[GroundAtom]):
         self._forward_chaining_steps = forward_chaining_steps
         self._language_model = language_model
         self._program_template = program_template
@@ -49,6 +50,9 @@ class Lernd:
 
         print('Generating ground atoms...')
         self._ground_atoms = get_ground_atoms(language_model, program_template)
+
+        print('Generating initial valuation...')
+        self._initial_valuation = f_convert(background_axioms, self._ground_atoms)
 
     @property
     def forward_chaining_steps(self) -> int:
@@ -72,19 +76,17 @@ class Lernd:
 
     # loss is cross-entropy
     def loss(self, big_lambda: Dict[GroundAtom, int],
-             weights: Dict[Predicate, np.matrix],
-             background_axioms: List[GroundAtom]
+             weights: Dict[Predicate, np.matrix]
              ):
         return - np.mean((
-            small_lambda * np.log(self._p(alpha, weights, background_axioms)) +
-            (1 - small_lambda) * np.log(1 - self._p(alpha, weights, background_axioms))
+            small_lambda * np.log(self._p(alpha, weights, self._initial_valuation)) +
+            (1 - small_lambda) * np.log(1 - self._p(alpha, weights, self._initial_valuation))
             for (alpha, small_lambda) in big_lambda.items()
         ))
 
     # p(lambda|alpha,W,Pi,L,B) - given a particular atom, weights, program template, language model, and background
     # assumptions gives the probability of label of alpha (which is 0 or 1).
-    def _p(self, alpha: GroundAtom, weights: Dict[Predicate, np.matrix], background_axioms: List[GroundAtom]) -> float:
-        initial_valuation = f_convert(background_axioms, self._ground_atoms)
+    def _p(self, alpha: GroundAtom, weights: Dict[Predicate, np.matrix], initial_valuation: np.ndarray) -> float:
         valuation = f_infer(
             initial_valuation,
             self._clauses,

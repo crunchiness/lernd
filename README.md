@@ -30,5 +30,5 @@ Run tests
 
 To run tests:
 ```bash
-$ python3 -m lernd.test
+$ ./test.sh
 ```
