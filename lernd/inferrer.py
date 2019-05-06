@@ -4,7 +4,7 @@ __author__ = "Ingvaras Merkys"
 
 from typing import Dict, List, Tuple
 
-import numpy as np
+from autograd import numpy as np  # Thinly-wrapped version of Numpy
 from ordered_set import OrderedSet
 from scipy.special import softmax
 
@@ -13,7 +13,7 @@ from lernd.types import Atom, Constant, GroundAtom, Predicate, RuleTemplate, Var
 
 
 def f_infer(initial_valuation: np.ndarray,  # 1D array of ground atom valuations
-            clauses: Dict[Predicate, Tuple[Tuple[OrderedSet, RuleTemplate], Tuple[OrderedSet, RuleTemplate]]],
+            clauses: Dict[Predicate, Tuple[Tuple['OrderedSet[Clause]', RuleTemplate], Tuple['OrderedSet[Clause]', RuleTemplate]]],
             weights: Dict[Predicate, np.matrix],
             forward_chaining_steps: int,
             language_model: LanguageModel,

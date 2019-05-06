@@ -58,4 +58,4 @@ if __name__ == '__main__':
     print('Generating weight matrices...')
     weights = generate_weight_matrices(lernd_model.clauses, standard_deviation=0.5)  # type: Dict[Predicate, np.matrix]
 
-    loss, loss_grad = lernd_model.grad(big_lambda, weights, background_axioms)
+    loss, loss_grad = lernd_model.loss_and_grad(big_lambda, weights)

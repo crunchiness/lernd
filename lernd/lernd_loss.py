@@ -5,7 +5,8 @@ __author__ = "Ingvaras Merkys"
 import itertools
 from typing import Dict, List, Tuple
 
-import numpy as np
+from autograd import numpy as np  # Thinly-wrapped version of Numpy
+from autograd import grad
 from ordered_set import OrderedSet
 
 import lernd.util as u
@@ -78,11 +79,14 @@ class Lernd:
     def loss(self, big_lambda: Dict[GroundAtom, int],
              weights: Dict[Predicate, np.matrix]
              ):
-        return - np.mean((
+        return - np.mean([
             small_lambda * np.log(self._p(alpha, weights, self._initial_valuation)) +
             (1 - small_lambda) * np.log(1 - self._p(alpha, weights, self._initial_valuation))
             for (alpha, small_lambda) in big_lambda.items()
-        ))
+        ])
+
+    def loss_and_grad(self, big_lambda: Dict[GroundAtom, int], weights: Dict[Predicate, np.matrix]):
+        return self.loss(big_lambda, weights), grad(self.loss)(big_lambda, weights)
 
     # p(lambda|alpha,W,Pi,L,B) - given a particular atom, weights, program template, language model, and background
     # assumptions gives the probability of label of alpha (which is 0 or 1).
