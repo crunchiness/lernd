@@ -10,7 +10,7 @@ from autograd import grad
 from ordered_set import OrderedSet
 
 import lernd.util as u
-from lernd.classes import LanguageModel, ProgramTemplate
+from lernd.classes import LanguageModel, ProgramTemplate, ILP
 from lernd.generator import f_generate
 from lernd.inferrer import f_infer
 from lernd.types import GroundAtom, Predicate, RuleTemplate
@@ -40,24 +40,27 @@ def get_ground_atoms(language_model: LanguageModel, program_template: ProgramTem
 
 
 class Lernd:
-    def __init__(self, forward_chaining_steps: int, language_model: LanguageModel, program_template: ProgramTemplate,
-                 background_axioms: List[GroundAtom]):
-        self._forward_chaining_steps = forward_chaining_steps
-        self._language_model = language_model
+    def __init__(self, ilp_problem: ILP, program_template: ProgramTemplate):
+        self._ilp_problem = ilp_problem
+        self._language_model = ilp_problem.language_model
         self._program_template = program_template
 
         print('Generating clauses...')
-        self._clauses = f_generate(program_template, language_model)
+        self._clauses = f_generate(self._program_template, self._language_model)
 
         print('Generating ground atoms...')
-        self._ground_atoms = get_ground_atoms(language_model, program_template)
+        self._ground_atoms = get_ground_atoms(self._language_model, self.program_template)
 
         print('Generating initial valuation...')
-        self._initial_valuation = f_convert(background_axioms, self._ground_atoms)
+        self._initial_valuation = f_convert(self._ilp_problem.background_axioms, self._ground_atoms)
+
+    @property
+    def ilp_problem(self) -> ILP:
+        return self._ilp_problem
 
     @property
     def forward_chaining_steps(self) -> int:
-        return self._forward_chaining_steps
+        return self.program_template.forward_chaining_steps
 
     @property
     def language_model(self) -> LanguageModel:
@@ -95,7 +98,7 @@ class Lernd:
             initial_valuation,
             self._clauses,
             weights,
-            self._forward_chaining_steps,
+            self.forward_chaining_steps,
             self._language_model,
             self._ground_atoms
         )

@@ -10,7 +10,7 @@ from ordered_set import OrderedSet
 from lernd.classes import Clause
 from lernd.lernd_loss import Lernd
 from .classes import ILP, LanguageModel, ProgramTemplate
-from .types import GroundAtom, Predicate, RuleTemplate
+from .types import Constant, GroundAtom, Predicate, RuleTemplate
 
 
 def make_lambda(positive_examples: List[GroundAtom], negative_examples: List[GroundAtom]) -> Dict[GroundAtom, int]:
@@ -34,28 +34,17 @@ def generate_weight_matrices(
     return weights_dict
 
 
-if __name__ == '__main__':
-    target = Predicate(('q', 2))
-    preds_ext = []  # Set of extensional predicates
-    constants = []  # Set of constants
-    language_model = LanguageModel(target, preds_ext, constants)
-    background_axioms = []  # Background assumptions
-    positive_examples = []  # Positive examples
-    negative_examples = []  # Negative examples
-    ilp_problem = ILP(language_model, background_axioms, positive_examples, negative_examples)
-
-    preds_aux = []
-
-    # Dict (predicate p: tuple of rule templates (tau1, tau2))
-    rules = {Predicate(('q', 2)): (RuleTemplate((0, False)), RuleTemplate((1, True)))}
-    forward_chaining_steps = 0
-    program_template = ProgramTemplate(preds_aux, rules, forward_chaining_steps)
-
-    big_lambda = make_lambda(positive_examples, negative_examples)
-
-    lernd_model = Lernd(forward_chaining_steps, language_model, program_template, background_axioms)
+def main_loop(
+        ilp_problem: ILP,
+        program_template: ProgramTemplate
+):
+    lernd_model = Lernd(ilp_problem, program_template)
 
     print('Generating weight matrices...')
     weights = generate_weight_matrices(lernd_model.clauses, standard_deviation=0.5)  # type: Dict[Predicate, np.matrix]
 
+    print('Making big lambda...')
+    big_lambda = make_lambda(ilp_problem.positive_examples, ilp_problem.negative_examples)
+
+    # TODO: put in loop
     loss, loss_grad = lernd_model.loss_and_grad(big_lambda, weights)
