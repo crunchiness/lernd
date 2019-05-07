@@ -60,7 +60,7 @@ class Lernd:
 
     @property
     def forward_chaining_steps(self) -> int:
-        return self.program_template.forward_chaining_steps
+        return self._program_template.forward_chaining_steps
 
     @property
     def language_model(self) -> LanguageModel:
@@ -98,7 +98,7 @@ class Lernd:
             initial_valuation,
             self._clauses,
             weights,
-            self.forward_chaining_steps,
+            self._program_template.forward_chaining_steps,
             self._language_model,
             self._ground_atoms
         )

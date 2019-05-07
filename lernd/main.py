@@ -9,8 +9,8 @@ from ordered_set import OrderedSet
 
 from lernd.classes import Clause
 from lernd.lernd_loss import Lernd
-from .classes import ILP, LanguageModel, ProgramTemplate
-from .types import Constant, GroundAtom, Predicate, RuleTemplate
+from .classes import ILP, ProgramTemplate
+from .types import GroundAtom, Predicate, RuleTemplate
 
 
 def make_lambda(positive_examples: List[GroundAtom], negative_examples: List[GroundAtom]) -> Dict[GroundAtom, int]:
