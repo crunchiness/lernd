@@ -19,7 +19,7 @@ from lernd.types import GroundAtom, Predicate, RuleTemplate
 def f_convert(background_axioms: List[GroundAtom], ground_atoms: List[GroundAtom]) -> np.ndarray:
     # non-differentiable operation
     # order must be the same as in ground_atoms
-    return np.array([1 if gamma in background_axioms else 0 for gamma in ground_atoms])
+    return np.array([0] + [1 if gamma in background_axioms else 0 for gamma in ground_atoms])
 
 
 def f_extract(valuation: np.ndarray, gamma: GroundAtom, ground_atoms: List[GroundAtom]) -> float:
