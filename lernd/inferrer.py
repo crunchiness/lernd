@@ -2,13 +2,14 @@
 
 __author__ = "Ingvaras Merkys"
 
+import copy
 from typing import Dict, List, Tuple
 
 from autograd import numpy as np  # Thinly-wrapped version of Numpy
 from ordered_set import OrderedSet
 from scipy.special import softmax
 
-from lernd.classes import Clause, LanguageModel
+from lernd.classes import Clause, GroundAtoms, LanguageModel, MaybeGroundAtom
 from lernd.types import Atom, Constant, GroundAtom, Predicate, RuleTemplate, Variable
 
 
@@ -54,7 +55,25 @@ def fc(a, c: Clause, ground_atoms: List[GroundAtom], constants, tau: RuleTemplat
     return np.max(z, axis=1)
 
 
-def make_xc(c: Clause, ground_atoms: List[GroundAtom]) -> List[Tuple[GroundAtom, List[Tuple[int, ...]]]]:
+def fc_alt(a, c: Clause, ground_atoms: GroundAtoms, constants, tau: RuleTemplate) -> np.ndarray:
+    def gather2(a: np.ndarray, x: np.ndarray):
+        # a is a vector, x is a matrix
+        return a[x]
+
+    def fuzzy_and(y1: np.ndarray, y2: np.ndarray):
+        # product t-norm, element-wise multiplication
+        return np.multiply(y1, y2)
+    xc = make_xc_alt(c, ground_atoms)
+    xc_tensor = make_xc_tensor_alt(xc, constants, tau, ground_atoms)
+    x1 = xc_tensor[:, :, 0]
+    x2 = xc_tensor[:, :, 1]
+    y1 = gather2(a, x1)
+    y2 = gather2(a, x2)
+    z = fuzzy_and(y1, y2)
+    return np.max(z, axis=1)
+
+
+def make_xc(c: Clause, ground_atoms: List[GroundAtom]) -> List[Tuple[GroundAtom, List[Tuple[int, int]]]]:
     """Creates a Xc - a set of [sets of [pairs of [indices of ground atoms]]] for clause c
     """
     xc = []
@@ -75,6 +94,31 @@ def make_xc(c: Clause, ground_atoms: List[GroundAtom]) -> List[Tuple[GroundAtom,
             xc.append((ground_atom, pairs))
         else:
             xc.append((ground_atom, []))
+    return xc
+
+
+def make_xc_alt(c: Clause, ground_atoms: GroundAtoms) -> List[Tuple[GroundAtom, List[Tuple[int, int]]]]:
+    xc = []
+    head_pred, head_vars = c.head
+    atom1, atom2 = c.body
+
+    # for ground_atom that matches the head
+    for ground_head, _ in ground_atoms.ground_atom_generator(MaybeGroundAtom.from_atom(c.head)):
+        pairs = []
+        ground_head_consts = ground_head[1]
+        substitutions = {var: const for var, const in zip(head_vars, ground_head_consts)}
+        a1 = MaybeGroundAtom.from_atom(atom1)
+        a1.apply_substitutions(substitutions)
+        a2 = MaybeGroundAtom.from_atom(atom2)
+        a2.apply_substitutions(substitutions)
+        for ground_atom1, new_subst1 in ground_atoms.ground_atom_generator(a1):
+            a2_ = copy.deepcopy(a2)
+            a2_.apply_substitutions(new_subst1)
+            for ground_atom2, new_subst2 in ground_atoms.ground_atom_generator(a2_):
+                i1 = ground_atoms.get_ground_atom_index(ground_atom1)
+                i2 = ground_atoms.get_ground_atom_index(ground_atom2)
+                pairs.append((i1, i2))
+        xc.append((ground_head, pairs))
     return xc
 
 
@@ -139,6 +183,24 @@ def make_xc_tensor(xc: List[Tuple[GroundAtom, List[Tuple[int, ...]]]],
                 xc_tensor[k + 1][m] = xk_indices[m]
             else:
                 xc_tensor[k + 1][m] = (0, 0)
+    return xc_tensor
+
+
+def make_xc_tensor_alt(xc: List[Tuple[GroundAtom, List[Tuple[int, ...]]]],
+                   constants: List[Constant],
+                   tau: RuleTemplate,
+                   ground_atoms: GroundAtoms
+                   ) -> np.ndarray:
+    """Returns tensor of indices
+    """
+    n = ground_atoms.len
+    v = tau[0]
+    w = len(constants) ** v
+    xc_tensor = np.zeros((n, w, 2), dtype=int)
+
+    for ground_atom, xk_indices in xc:
+        index = ground_atoms.get_ground_atom_index(ground_atom)
+        xc_tensor[index] = xk_indices
     return xc_tensor
 
 

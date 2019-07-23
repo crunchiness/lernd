@@ -2,7 +2,7 @@
 
 __author__ = "Ingvaras Merkys"
 
-from typing import NewType, Tuple
+from typing import NewType, Tuple, Union
 
 RuleTemplate = NewType('RuleTemplate', Tuple[int, bool])  # (v, int)
 Predicate = NewType('Predicate', Tuple[str, int])  # (name, arity)

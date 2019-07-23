@@ -2,10 +2,13 @@
 
 __author__ = "Ingvaras Merkys"
 
-from typing import Tuple, List, Dict
+import itertools
+from typing import Dict, Iterable, List, Tuple, Union
+
+from ordered_set import OrderedSet
 
 from lernd import util as u
-from .types import Atom, Constant, GroundAtom, Predicate, RuleTemplate
+from .types import Atom, Constant, GroundAtom, Predicate, RuleTemplate, Variable
 
 
 class Clause:
@@ -109,3 +112,112 @@ class ILP:
     @property
     def negative_examples(self) -> List[GroundAtom]:
         return self._negative_examples
+
+
+class MaybeGroundAtom:
+    def __init__(self, pred: Predicate, args, groundedness: Iterable[bool]):
+        self._pred = pred
+        self._args = args
+        self._groundedness = groundedness
+        self._len = len(args)
+        self._arg0 = (args[0], groundedness[0]) if self._len >= 1 else None
+        self._arg1 = (args[1], groundedness[1]) if self._len >= 2 else None
+        self._args = [
+            (args[0], groundedness[0]) if self._len > 0 else None,
+            (args[1], groundedness[1]) if self._len > 1 else None
+        ]
+
+    def arg_at(self, index: int) -> Union[Constant, Variable]:
+        return self._args[index][0]
+
+    def const_at(self, index: int) -> bool:
+        return self._args[index][1]
+
+    def is_ground(self) -> bool:
+        return (self._args[0] is None or self._args[0][1]) and (self._args[1] is None or self._args[1][1])
+
+    def to_ground_atom(self) -> GroundAtom:
+        if self.is_ground():
+            return GroundAtom((self._pred, tuple((self.arg_at(i) for i in range(self._len)))))
+        else:
+            raise Exception()
+
+    def apply_substitutions(self, substitutions: Dict[Variable, Constant]):
+        for i in range(self._len):
+            if not self.const_at(i) and self.arg_at(i) in substitutions:
+                self._args[i] = (substitutions[self.arg_at(i)], True)
+
+    @property
+    def pred(self) -> Predicate:
+        return self._pred
+
+    @property
+    def arity(self) -> int:
+        return u.arity(self._pred)
+
+    @classmethod
+    def from_ground_atom(cls, ground_atom: GroundAtom):
+        pred, args = ground_atom
+        groundedness = [True] * u.arity(pred)
+        return cls(pred, args, groundedness)
+
+    @classmethod
+    def from_atom(cls, atom: Atom):
+        pred, args = atom
+        groundedness = [False] * u.arity(pred)
+        return cls(pred, args, groundedness)
+
+    def __str__(self):
+        str = ''
+        str += self._pred[0] + '('
+        for i in range(self.arity):
+            str += self._args[i][0]
+        str += ')'
+        return str
+
+
+class GroundAtoms:
+    def __init__(self, language_model: LanguageModel, program_template: ProgramTemplate):
+        self._constants = OrderedSet(language_model.constants)
+        preds = language_model.preds_ext + program_template.preds_aux + [language_model.target]
+        self._ground_atom_base_index = {preds[0]: 1}  # First element (index 0) is falsum
+        for i in range(1, len(preds)):
+            prev_pred = preds[i - 1]
+            pred = preds[i]
+            self._ground_atom_base_index[pred] = self._ground_atom_base_index[prev_pred] + len(self._constants) ** u.arity(prev_pred)
+        self._len = self._ground_atom_base_index[preds[-1]] + len(self._constants) ** u.arity(preds[-1])
+
+    @property
+    def len(self):
+        return self._len
+
+    def ground_atom_generator(self, maybe_ground_atom: MaybeGroundAtom) -> Iterable[Tuple[GroundAtom, Dict[Variable, Constant]]]:
+        # TODO: maybe doesn't need to return ground_atoms at all?
+        if maybe_ground_atom.is_ground():
+            return [(maybe_ground_atom.to_ground_atom(), {})]
+        pred = maybe_ground_atom.pred
+        arity = maybe_ground_atom.arity
+        if arity == 1:
+            return ((GroundAtom((pred, (c,))), {maybe_ground_atom.arg_at(0): c}) for c in self._constants)
+        elif arity == 2:
+            if maybe_ground_atom.const_at(0):
+                return ((GroundAtom((pred, (maybe_ground_atom.arg_at(0), c))), {maybe_ground_atom.arg_at(1): c}) for c in self._constants)
+            elif maybe_ground_atom.const_at(1):
+                return ((GroundAtom((pred, (c, maybe_ground_atom.arg_at(1)))), {maybe_ground_atom.arg_at(0): c}) for c in self._constants)
+            else:
+                # TODO: this shouldn't be ever called, I think
+                # raise Exception()
+                return ((GroundAtom((pred, (c1, c2))), {maybe_ground_atom.arg_at(0): c1, maybe_ground_atom.arg_at(1): c2}) for c1, c2 in itertools.product(self._constants, repeat=arity))
+        else:
+            raise Exception()
+
+    def get_ground_atom_index(self, ground_atom: GroundAtom) -> int:
+        pred, consts = ground_atom
+        if u.arity(pred) == 0:
+            return self._ground_atom_base_index[pred]
+        elif u.arity(pred) == 1:
+            return self._ground_atom_base_index[pred] + self._constants.index(consts[0])
+        elif u.arity(pred) == 2:
+            return self._ground_atom_base_index[pred] + self._constants.index(consts[0]) * len(self._constants) + self._constants.index(consts[1])
+        else:
+            raise Exception()

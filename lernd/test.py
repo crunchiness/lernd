@@ -11,7 +11,7 @@ from lernd import generator as g
 from lernd import inferrer as i
 from lernd import lernd_loss as l
 from lernd import util as u
-from lernd.classes import LanguageModel, ProgramTemplate
+from lernd.classes import GroundAtoms, LanguageModel, ProgramTemplate
 from .types import Atom, Constant, Predicate, RuleTemplate, Variable
 
 
@@ -195,6 +195,24 @@ class TestInferrer(unittest.TestCase):
         ]
         self.assertEqual(i.make_xc(clause, ground_atoms), expected)
 
+    def test_make_xc_alt(self):
+        target_pred = u.str2pred('r/2')
+        preds_ext = [u.str2pred('p/2'), u.str2pred('q/2')]
+        preds_aux = []
+        language_model = LanguageModel(target_pred, preds_ext, [Constant('a'), Constant('b')])
+        program_template = ProgramTemplate(preds_aux, {}, 0)
+        ground_atoms = GroundAtoms(language_model, program_template)
+
+        clause = c.Clause.from_str('r(X,Y)<-p(X,Z), q(Z,Y)')
+        f = u.str2ground_atom
+        expected = [
+            (f('r(a,a)'), [(1, 5), (2, 7)]),
+            (f('r(a,b)'), [(1, 6), (2, 8)]),
+            (f('r(b,a)'), [(3, 5), (4, 7)]),
+            (f('r(b,b)'), [(3, 6), (4, 8)])
+        ]
+        self.assertEqual(i.make_xc_alt(clause, ground_atoms), expected)
+
     def test_make_xc_tensor(self):
         f = u.str2ground_atom
         xc = [
@@ -286,6 +304,26 @@ class TestInferrer(unittest.TestCase):
         except AssertionError:
             self.assertTrue(False)
 
+    def test_fc_alt(self):
+        target_pred = u.str2pred('r/2')
+        preds_ext = [u.str2pred('p/2'), u.str2pred('q/2')]
+        preds_aux = []
+        language_model = LanguageModel(target_pred, preds_ext, [Constant('a'), Constant('b')])
+        program_template = ProgramTemplate(preds_aux, {}, 0)
+        ground_atoms = GroundAtoms(language_model, program_template)
+
+        a = np.array([0, 1, 0.9, 0, 0, 0.1, 0, 0.2, 0.8, 0, 0, 0, 0])
+        clause = c.Clause.from_str('r(X,Y)<-p(X,Z), q(Z,Y)')
+        constants = {Constant('a'), Constant('b')}
+        tau = RuleTemplate((1, False))
+        expected_a_apostrophe = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0.18, 0.72, 0, 0])
+        a_apostrophe = i.fc_alt(a, clause, ground_atoms, constants, tau)
+        try:
+            np.testing.assert_array_almost_equal(a_apostrophe, expected_a_apostrophe)
+            self.assertTrue(True)
+        except AssertionError:
+            self.assertTrue(False)
+
 
 class TestLerndLoss(unittest.TestCase):
     def test_get_ground_atoms(self):
@@ -293,7 +331,7 @@ class TestLerndLoss(unittest.TestCase):
         preds_ext = [u.str2pred('p/0')]
         preds_aux = [u.str2pred('t/1')]
         language_model = LanguageModel(target_pred, preds_ext, [Constant(x) for x in ['a', 'b', 'c']])
-        pi = ProgramTemplate(preds_aux, {}, 0)
+        program_template = ProgramTemplate(preds_aux, {}, 0)
         f = u.str2ground_atom
         expected_ground_atoms = [
             f('p()'),
@@ -310,7 +348,7 @@ class TestLerndLoss(unittest.TestCase):
             f('q(c,b)'),
             f('q(c,c)')
         ]
-        self.assertEqual(l.get_ground_atoms(language_model, pi), expected_ground_atoms)
+        self.assertEqual(l.get_ground_atoms(language_model, program_template), expected_ground_atoms)
 
 
 class TestClasses(unittest.TestCase):
