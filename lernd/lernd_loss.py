@@ -49,7 +49,6 @@ class Lernd:
         self._clauses = f_generate(self._program_template, self._language_model)
 
         print('Generating ground atoms...')
-        # self._ground_atoms = get_ground_atoms(self._language_model, self._program_template)
         self._ground_atoms = GroundAtoms(self._language_model, self._program_template)
 
         print('Generating initial valuation...')

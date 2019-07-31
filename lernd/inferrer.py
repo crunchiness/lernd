@@ -64,8 +64,6 @@ def fc_alt(a, c: Clause, ground_atoms: GroundAtoms, constants, tau: RuleTemplate
         # product t-norm, element-wise multiplication
         return np.multiply(y1, y2)
     xc = make_xc_alt(c, ground_atoms)
-    for _, thing in xc:
-        assert len(thing) <= 10
     xc_tensor = make_xc_tensor_alt(xc, constants, tau, ground_atoms)
     x1 = xc_tensor[:, :, 0]
     x2 = xc_tensor[:, :, 1]

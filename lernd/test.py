@@ -11,7 +11,7 @@ from lernd import generator as g
 from lernd import inferrer as i
 from lernd import lernd_loss as l
 from lernd import util as u
-from lernd.classes import GroundAtoms, LanguageModel, ProgramTemplate, MaybeGroundAtom
+from lernd.classes import GroundAtoms, LanguageModel, MaybeGroundAtom, ProgramTemplate
 from .lernd_types import Atom, Constant, Predicate, RuleTemplate, Variable
 
 
