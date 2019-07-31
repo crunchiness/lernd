@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+#set -euo pipefail
 
 . /opt/anaconda3/etc/profile.d/conda.sh
 conda activate py37

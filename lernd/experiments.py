@@ -5,7 +5,7 @@ __author__ = "Ingvaras Merkys"
 from itertools import product
 from lernd.classes import ILP, LanguageModel, ProgramTemplate
 from lernd.main import main_loop
-from lernd.types import Constant, GroundAtom, Predicate, RuleTemplate
+from lernd.lernd_types import Constant, GroundAtom, Predicate, RuleTemplate
 from lernd.util import ground_atom2str
 
 

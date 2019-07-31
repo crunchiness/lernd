@@ -11,8 +11,8 @@ from lernd import generator as g
 from lernd import inferrer as i
 from lernd import lernd_loss as l
 from lernd import util as u
-from lernd.classes import GroundAtoms, LanguageModel, ProgramTemplate
-from .types import Atom, Constant, Predicate, RuleTemplate, Variable
+from lernd.classes import GroundAtoms, LanguageModel, ProgramTemplate, MaybeGroundAtom
+from .lernd_types import Atom, Constant, Predicate, RuleTemplate, Variable
 
 
 class TestUtil(unittest.TestCase):
@@ -364,6 +364,48 @@ class TestClasses(unittest.TestCase):
         for clause_str in clause_strs:
             clause = c.Clause.from_str(clause_str)
             self.assertEqual(clause_str, clause.__str__())
+
+    def test_GroundAtoms_all_ground_atom_generator(self):
+        target_pred = u.str2pred('r/2')
+        preds_ext = [u.str2pred('p/2'), u.str2pred('q/2')]
+        preds_aux = []
+        language_model = LanguageModel(target_pred, preds_ext, [Constant('a'), Constant('b')])
+        program_template = ProgramTemplate(preds_aux, {}, 0)
+        ground_atoms = GroundAtoms(language_model, program_template)
+        f = u.str2ground_atom
+        expected_ground_atoms = [
+            f('p(a,a)'),
+            f('p(a,b)'),
+            f('p(b,a)'),
+            f('p(b,b)'),
+            f('q(a,a)'),
+            f('q(a,b)'),
+            f('q(b,a)'),
+            f('q(b,b)'),
+            f('r(a,a)'),
+            f('r(a,b)'),
+            f('r(b,a)'),
+            f('r(b,b)')
+        ]
+        actual_ground_atoms = list(ground_atoms.all_ground_atom_generator())
+        self.assertEqual(actual_ground_atoms, expected_ground_atoms)
+
+    def test_GroundAtoms_ground_atom_generator(self):
+        target_pred = u.str2pred('r/2')
+        preds_ext = [u.str2pred('p/2'), u.str2pred('q/2')]
+        preds_aux = []
+        language_model = LanguageModel(target_pred, preds_ext, [Constant('a'), Constant('b')])
+        program_template = ProgramTemplate(preds_aux, {}, 0)
+        ground_atoms = GroundAtoms(language_model, program_template)
+        maybe_ground_atom = MaybeGroundAtom.from_atom(Atom((target_pred, (Variable('C'), Variable('C')))))
+        actual_ground_atoms = list(list(zip(*(ground_atoms.ground_atom_generator(maybe_ground_atom))))[0])
+        f = u.str2ground_atom
+        expected_ground_atoms = [
+            f('r(a,a)'),
+            f('r(b,b)')
+        ]
+        print('print(actual_ground_atoms)', actual_ground_atoms)
+        self.assertEqual(actual_ground_atoms, expected_ground_atoms)
 
 
 if __name__ == '__main__':

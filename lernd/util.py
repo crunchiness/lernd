@@ -4,7 +4,7 @@ __author__ = "Ingvaras Merkys"
 
 import re
 
-from .types import Atom, Constant, GroundAtom, Predicate, Variable
+from .lernd_types import Atom, Constant, GroundAtom, Predicate, Variable
 
 
 # Predicate

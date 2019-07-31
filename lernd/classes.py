@@ -8,7 +8,7 @@ from typing import Dict, Iterable, List, Tuple, Union
 from ordered_set import OrderedSet
 
 from lernd import util as u
-from .types import Atom, Constant, GroundAtom, Predicate, RuleTemplate, Variable
+from .lernd_types import Atom, Constant, GroundAtom, Predicate, RuleTemplate, Variable
 
 
 class Clause:
@@ -117,14 +117,13 @@ class ILP:
 class MaybeGroundAtom:
     def __init__(self, pred: Predicate, args, groundedness: Iterable[bool]):
         self._pred = pred
-        self._args = args
         self._groundedness = groundedness
         self._len = len(args)
         self._arg0 = (args[0], groundedness[0]) if self._len >= 1 else None
         self._arg1 = (args[1], groundedness[1]) if self._len >= 2 else None
         self._args = [
-            (args[0], groundedness[0]) if self._len > 0 else None,
-            (args[1], groundedness[1]) if self._len > 1 else None
+            self._arg0,
+            self._arg1
         ]
 
     def arg_at(self, index: int) -> Union[Constant, Variable]:
@@ -140,7 +139,7 @@ class MaybeGroundAtom:
         if self.is_ground():
             return GroundAtom((self._pred, tuple((self.arg_at(i) for i in range(self._len)))))
         else:
-            raise Exception()
+            raise Exception()  # TODO: something better
 
     def apply_substitutions(self, substitutions: Dict[Variable, Constant]):
         for i in range(self._len):
@@ -175,12 +174,22 @@ class MaybeGroundAtom:
         str += ')'
         return str
 
+    def copy(self):
+        return type(self)(self._pred, [self.arg_at(i) for i in range(self._len)], [self.const_at(i) for i in range(self._len)])
+
 
 class GroundAtoms:
     def __init__(self, language_model: LanguageModel, program_template: ProgramTemplate):
         self._constants = OrderedSet(language_model.constants)
-        preds = language_model.preds_ext + program_template.preds_aux + [language_model.target]
-        self._ground_atom_base_index = {preds[0]: 1}  # First element (index 0) is falsum
+        self._number_of_constants = len(language_model.constants)
+        self._preds = language_model.preds_ext + program_template.preds_aux + [language_model.target]
+        preds = self._preds
+
+        # First element (index 0) is falsum
+        # key: predicate,
+        # value: index of predicate's first ground atom (amongst all ground atoms)
+        self._ground_atom_base_index = {preds[0]: 1}
+
         for i in range(1, len(preds)):
             prev_pred = preds[i - 1]
             pred = preds[i]
@@ -205,19 +214,32 @@ class GroundAtoms:
             elif maybe_ground_atom.const_at(1):
                 return ((GroundAtom((pred, (c, maybe_ground_atom.arg_at(1)))), {maybe_ground_atom.arg_at(0): c}) for c in self._constants)
             else:
-                # TODO: this shouldn't be ever called, I think
-                # raise Exception()
-                return ((GroundAtom((pred, (c1, c2))), {maybe_ground_atom.arg_at(0): c1, maybe_ground_atom.arg_at(1): c2}) for c1, c2 in itertools.product(self._constants, repeat=arity))
+                if not maybe_ground_atom.const_at(0) and not maybe_ground_atom.const_at(1) and maybe_ground_atom.arg_at(0) == maybe_ground_atom.arg_at(1):
+                    return ((GroundAtom((pred, (c, c))), {maybe_ground_atom.arg_at(0): c}) for c in self._constants)
+                else:
+                    return ((GroundAtom((pred, (c1, c2))), {maybe_ground_atom.arg_at(0): c1, maybe_ground_atom.arg_at(1): c2}) for c1, c2 in itertools.product(self._constants, repeat=arity))
         else:
-            raise Exception()
+            raise Exception()  # TODO: something better
+
+    def all_ground_atom_generator(self) -> Iterable[Tuple[GroundAtom]]:
+        for pred in self._preds:
+            arity = u.arity(pred)
+            if arity == 0:
+                yield GroundAtom((pred, ()))
+            elif arity == 1:
+                for c in self._constants:
+                    yield GroundAtom((pred, (c,)))
+            elif arity == 2:
+                for c1, c2 in itertools.product(self._constants, repeat=2):
+                    yield GroundAtom((pred, (c1, c2)))
 
     def get_ground_atom_index(self, ground_atom: GroundAtom) -> int:
         pred, consts = ground_atom
         if u.arity(pred) == 0:
             return self._ground_atom_base_index[pred]
         elif u.arity(pred) == 1:
-            return self._ground_atom_base_index[pred] + self._constants.index(consts[0])
+            return self._ground_atom_base_index[pred] + self._constants.map[consts[0]]
         elif u.arity(pred) == 2:
-            return self._ground_atom_base_index[pred] + self._constants.index(consts[0]) * len(self._constants) + self._constants.index(consts[1])
+            return self._ground_atom_base_index[pred] + self._constants.map[consts[0]] * self._number_of_constants + self._constants.map[consts[1]]
         else:
-            raise Exception()
+            raise Exception()  # TODO: something better

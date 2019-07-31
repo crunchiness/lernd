@@ -10,7 +10,7 @@ from ordered_set import OrderedSet
 from lernd.classes import Clause
 from lernd.lernd_loss import Lernd
 from .classes import ILP, ProgramTemplate
-from .types import GroundAtom, Predicate, RuleTemplate
+from .lernd_types import GroundAtom, Predicate, RuleTemplate
 
 
 def make_lambda(positive_examples: List[GroundAtom], negative_examples: List[GroundAtom]) -> Dict[GroundAtom, int]:
@@ -45,6 +45,8 @@ def main_loop(
 
     print('Making big lambda...')
     big_lambda = make_lambda(ilp_problem.positive_examples, ilp_problem.negative_examples)
+
+    print('Big lambda:', big_lambda)
 
     # TODO: put in loop
     loss, loss_grad = lernd_model.loss_and_grad(big_lambda, weights)

@@ -11,7 +11,7 @@ from typing import Dict, Iterable, List, Tuple
 from ordered_set import OrderedSet
 
 from .classes import Clause, LanguageModel, ProgramTemplate
-from .types import Atom, Predicate, RuleTemplate, Variable
+from .lernd_types import Atom, Predicate, RuleTemplate, Variable
 
 
 def f_generate(program_template: ProgramTemplate,

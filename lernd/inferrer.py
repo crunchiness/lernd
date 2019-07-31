@@ -10,7 +10,7 @@ from ordered_set import OrderedSet
 from scipy.special import softmax
 
 from lernd.classes import Clause, GroundAtoms, LanguageModel, MaybeGroundAtom
-from lernd.types import Atom, Constant, GroundAtom, Predicate, RuleTemplate, Variable
+from lernd.lernd_types import Atom, Constant, GroundAtom, Predicate, RuleTemplate, Variable
 
 
 def f_infer(initial_valuation: np.ndarray,  # 1D array of ground atom valuations
@@ -18,7 +18,7 @@ def f_infer(initial_valuation: np.ndarray,  # 1D array of ground atom valuations
             weights: Dict[Predicate, np.matrix],
             forward_chaining_steps: int,
             language_model: LanguageModel,
-            ground_atoms: List[GroundAtom]) -> np.ndarray:
+            ground_atoms: GroundAtoms) -> np.ndarray:
     # differentiable operation
     a = initial_valuation
     for t in range(forward_chaining_steps):
@@ -29,9 +29,9 @@ def f_infer(initial_valuation: np.ndarray,  # 1D array of ground atom valuations
             sm = softmax(weights[pred])
             bt = np.zeros(np.shape(initial_valuation))
             for j in range(len(clauses_1)):
-                f1jp = fc(a, clauses_1[j], ground_atoms, language_model.constants, tau1)
+                f1jp = fc_alt(a, clauses_1[j], ground_atoms, language_model.constants, tau1)
                 for k in range(len(clauses_2)):
-                    f2kp = fc(a, clauses_2[k], ground_atoms, language_model.constants, tau2)
+                    f2kp = fc_alt(a, clauses_2[k], ground_atoms, language_model.constants, tau2)
                     bt += g(f1jp, f2kp) * sm[j, k]
         a = f_amalgamate(a, bt)
     return a
@@ -64,6 +64,8 @@ def fc_alt(a, c: Clause, ground_atoms: GroundAtoms, constants, tau: RuleTemplate
         # product t-norm, element-wise multiplication
         return np.multiply(y1, y2)
     xc = make_xc_alt(c, ground_atoms)
+    for _, thing in xc:
+        assert len(thing) <= 10
     xc_tensor = make_xc_tensor_alt(xc, constants, tau, ground_atoms)
     x1 = xc_tensor[:, :, 0]
     x2 = xc_tensor[:, :, 1]
@@ -98,6 +100,8 @@ def make_xc(c: Clause, ground_atoms: List[GroundAtom]) -> List[Tuple[GroundAtom,
 
 
 def make_xc_alt(c: Clause, ground_atoms: GroundAtoms) -> List[Tuple[GroundAtom, List[Tuple[int, int]]]]:
+    """Creates a Xc - a set of [sets of [pairs of [indices of ground atoms]]] for clause c
+    """
     xc = []
     head_pred, head_vars = c.head
     atom1, atom2 = c.body
@@ -112,7 +116,7 @@ def make_xc_alt(c: Clause, ground_atoms: GroundAtoms) -> List[Tuple[GroundAtom, 
         a2 = MaybeGroundAtom.from_atom(atom2)
         a2.apply_substitutions(substitutions)
         for ground_atom1, new_subst1 in ground_atoms.ground_atom_generator(a1):
-            a2_ = copy.deepcopy(a2)
+            a2_ = a2.copy()
             a2_.apply_substitutions(new_subst1)
             for ground_atom2, new_subst2 in ground_atoms.ground_atom_generator(a2_):
                 i1 = ground_atoms.get_ground_atom_index(ground_atom1)
@@ -187,10 +191,10 @@ def make_xc_tensor(xc: List[Tuple[GroundAtom, List[Tuple[int, ...]]]],
 
 
 def make_xc_tensor_alt(xc: List[Tuple[GroundAtom, List[Tuple[int, ...]]]],
-                   constants: List[Constant],
-                   tau: RuleTemplate,
-                   ground_atoms: GroundAtoms
-                   ) -> np.ndarray:
+                       constants: List[Constant],
+                       tau: RuleTemplate,
+                       ground_atoms: GroundAtoms
+                       ) -> np.ndarray:
     """Returns tensor of indices
     """
     n = ground_atoms.len

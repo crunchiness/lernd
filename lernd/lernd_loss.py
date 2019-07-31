@@ -10,22 +10,22 @@ from autograd import grad
 from ordered_set import OrderedSet
 
 import lernd.util as u
-from lernd.classes import LanguageModel, ProgramTemplate, ILP
+from lernd.classes import GroundAtoms, ILP, LanguageModel, ProgramTemplate
 from lernd.generator import f_generate
 from lernd.inferrer import f_infer
-from lernd.types import GroundAtom, Predicate, RuleTemplate
+from lernd.lernd_types import GroundAtom, Predicate, RuleTemplate
 
 
-def f_convert(background_axioms: List[GroundAtom], ground_atoms: List[GroundAtom]) -> np.ndarray:
+def f_convert(background_axioms: List[GroundAtom], ground_atoms: GroundAtoms) -> np.ndarray:
     # non-differentiable operation
     # order must be the same as in ground_atoms
-    return np.array([0] + [1 if gamma in background_axioms else 0 for gamma in ground_atoms])
+    return np.array([0] + [1 if gamma in background_axioms else 0 for gamma in ground_atoms.all_ground_atom_generator()])
 
 
-def f_extract(valuation: np.ndarray, gamma: GroundAtom, ground_atoms: List[GroundAtom]) -> float:
+def f_extract(valuation: np.ndarray, gamma: GroundAtom, ground_atoms: GroundAtoms) -> float:
     # differentiable operation
     # extracts valuation value of a particular atom gamma
-    return valuation[ground_atoms.index(gamma)]
+    return valuation[ground_atoms.get_ground_atom_index(gamma)]
 
 
 def get_ground_atoms(language_model: LanguageModel, program_template: ProgramTemplate) -> List[GroundAtom]:
@@ -49,7 +49,8 @@ class Lernd:
         self._clauses = f_generate(self._program_template, self._language_model)
 
         print('Generating ground atoms...')
-        self._ground_atoms = get_ground_atoms(self._language_model, self._program_template)
+        # self._ground_atoms = get_ground_atoms(self._language_model, self._program_template)
+        self._ground_atoms = GroundAtoms(self._language_model, self._program_template)
 
         print('Generating initial valuation...')
         self._initial_valuation = f_convert(self._ilp_problem.background_axioms, self._ground_atoms)
@@ -75,7 +76,7 @@ class Lernd:
         return self._clauses
 
     @property
-    def ground_atoms(self) -> List[GroundAtom]:
+    def ground_atoms(self) -> GroundAtoms:
         return self._ground_atoms
 
     # loss is cross-entropy
