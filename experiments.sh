@@ -10,4 +10,4 @@ CONDA_SCRIPT_PATH="${CONDABIN_PATH/$CONDABIN/$CONDA_SCRIPT}"
 . "$CONDA_SCRIPT_PATH"
 
 conda activate lernd
-python3 -m lernd.test
+python3 -m lernd.experiments

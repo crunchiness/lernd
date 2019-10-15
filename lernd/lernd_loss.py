@@ -89,7 +89,11 @@ class Lernd:
         ])
 
     def loss_and_grad(self, big_lambda: Dict[GroundAtom, int], weights: Dict[Predicate, np.matrix]):
-        return self.loss(big_lambda, weights), grad(self.loss)(big_lambda, weights)
+        print('Calculating loss...')
+        loss = self.loss(big_lambda, weights)
+        print('Calculating loss grad...')
+        grad_ = grad(self.loss)(big_lambda, weights)
+        return loss, grad_
 
     # p(lambda|alpha,W,Pi,L,B) - given a particular atom, weights, program template, language model, and background
     # assumptions gives the probability of label of alpha (which is 0 or 1).

@@ -404,7 +404,6 @@ class TestClasses(unittest.TestCase):
             f('r(a,a)'),
             f('r(b,b)')
         ]
-        print('print(actual_ground_atoms)', actual_ground_atoms)
         self.assertEqual(actual_ground_atoms, expected_ground_atoms)
 
 

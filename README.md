@@ -1,34 +1,54 @@
-LERND (work in progress)
-========================
-My attempt to implement the algorithm from the paper "Learning Explanatory Rules from Noisy Data".
+# LERND (work in progress)
 
-Set up
-======
+My attempt to implement the algorithm from the paper
+[Learning Explanatory Rules from Noisy Data](https://arxiv.org/abs/1711.04574).
 
+## Set up
+
+First you'll need to install conda package manager. Follow instructions at [anaconda.com](https://www.anaconda.com).
 This project uses standard Python 3.7 environment provided by Anaconda.
 
-To create identical environment (named py37):
+To create the environment (named lernd):
 ```bash
-$ conda create --name py37 --file spec-file.txt
-```
-or
-```bash
-$ conda create -n py37 python=3.7 anaconda
+conda create -n lernd python=3.7 scipy=1.3.1
 ```
 
-Activate the environment before running the project:
+Activate the environment:
 ```bash
-$ conda activate py37
+conda activate lernd
 ```
 
 Install requirements from `requirements.txt`:
 ```bash
-$ pip install -r requirements.txt
+pip install -r requirements.txt
 ```
-Run tests
-=========
+
+## Run tests
 
 To run tests:
 ```bash
-$ ./test.sh
+./test.sh
+```
+or
+```bash
+python3 -m lernd.experiments  # with "lernd" env active
+```
+
+## Current state of affairs
+
+Main issues at the moment are:
+* inferrer is too slow,
+* autograd does not work due to ints, so need to try and figure out how to circumvent that (try JAX),
+* optimizer (like SGD) is not implemented
+
+
+## Experiments
+
+To run experiments (not fully implemented, but makes inferrer work):
+```bash
+./experiments.sh
+```
+or
+```bash
+python3 -m lernd.experiments  # with "lernd" env active
 ```
