@@ -2,9 +2,11 @@
 
 __author__ = "Ingvaras Merkys"
 
+import os
 import unittest
 
 import numpy as np
+import tensorflow as tf
 
 from lernd import classes as c
 from lernd import generator as g
@@ -12,7 +14,10 @@ from lernd import inferrer as i
 from lernd import lernd_loss as l
 from lernd import util as u
 from lernd.classes import GroundAtoms, LanguageModel, MaybeGroundAtom, ProgramTemplate
-from .lernd_types import Atom, Constant, Predicate, RuleTemplate, Variable
+from lernd.lernd_types import Atom, Constant, Predicate, RuleTemplate, Variable
+
+# Disable Tensorflow logs
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 class TestUtil(unittest.TestCase):
@@ -111,91 +116,8 @@ class TestGenerator(unittest.TestCase):
 
 
 class TestInferrer(unittest.TestCase):
-    def test_xc_rec(self):
-        ground_atoms = list(map(u.str2ground_atom, [
-            'p(a,a)',
-            'p(a,b)',
-            'p(b,a)',
-            'p(b,b)',
-            'q(a,a)',
-            'q(a,b)',
-            'q(b,a)',
-            'q(b,b)',
-            'r(a,a)',
-            'r(a,b)',
-            'r(b,a)',
-            'r(b,b)'
-        ]))
-        clause = c.Clause.from_str('r(X,Y)<-p(X,Z), q(Z,Y)')
-        substitution_expected = [
-            (
-                {
-                    Variable('X'): Constant('a'),
-                    Variable('Y'): Constant('a')
-                },
-                [(1, 5), (2, 7)]
-            ),
-            (
-                {
-                    Variable('X'): Constant('a'),
-                    Variable('Y'): Constant('b')
-                },
-                [(1, 6), (2, 8)]
-            ),
-            (
-                {
-                    Variable('X'): Constant('b'),
-                    Variable('Y'): Constant('a')
-                },
-                [(3, 5), (4, 7)]
-            ),
-            (
-                {
-                    Variable('X'): Constant('b'),
-                    Variable('Y'): Constant('b')
-                },
-                [(3, 6), (4, 8)]
-            )
-        ]
-
-        for substitution, expected_result in substitution_expected:
-            result = i.xc_rec(clause.body, ground_atoms, substitution)
-            self.assertEqual(result, expected_result)
 
     def test_make_xc(self):
-        ground_atoms = list(map(u.str2ground_atom, [
-            'p(a,a)',
-            'p(a,b)',
-            'p(b,a)',
-            'p(b,b)',
-            'q(a,a)',
-            'q(a,b)',
-            'q(b,a)',
-            'q(b,b)',
-            'r(a,a)',
-            'r(a,b)',
-            'r(b,a)',
-            'r(b,b)'
-        ]))
-        clause = c.Clause.from_str('r(X,Y)<-p(X,Z), q(Z,Y)')
-        f = u.str2ground_atom
-        expected = [
-            (f('p(a,a)'), []),
-            (f('p(a,b)'), []),
-            (f('p(b,a)'), []),
-            (f('p(b,b)'), []),
-            (f('q(a,a)'), []),
-            (f('q(a,b)'), []),
-            (f('q(b,a)'), []),
-            (f('q(b,b)'), []),
-            (f('r(a,a)'), [(1, 5), (2, 7)]),
-            (f('r(a,b)'), [(1, 6), (2, 8)]),
-            (f('r(b,a)'), [(3, 5), (4, 7)]),
-            (f('r(b,b)'), [(3, 6), (4, 8)])
-        ]
-        self.assertEqual(i.make_xc(clause, ground_atoms), expected)
-
-    def test_make_xc_alt(self):
         target_pred = u.str2pred('r/2')
         preds_ext = [u.str2pred('p/2'), u.str2pred('q/2')]
         preds_aux = []
@@ -211,7 +133,7 @@ class TestInferrer(unittest.TestCase):
             (f('r(b,a)'), [(3, 5), (4, 7)]),
             (f('r(b,b)'), [(3, 6), (4, 8)])
         ]
-        self.assertEqual(i.make_xc_alt(clause, ground_atoms), expected)
+        self.assertEqual(i.make_xc(clause, ground_atoms), expected)
 
     def test_make_xc_tensor(self):
         f = u.str2ground_atom
@@ -231,20 +153,12 @@ class TestInferrer(unittest.TestCase):
         ]
         constants = [Constant('a'), Constant('b')]
         tau = RuleTemplate((1, False))
-        ground_atoms = list(map(u.str2ground_atom, [
-            'p(a,a)',
-            'p(a,b)',
-            'p(b,a)',
-            'p(b,b)',
-            'q(a,a)',
-            'q(a,b)',
-            'q(b,a)',
-            'q(b,b)',
-            'r(a,a)',
-            'r(a,b)',
-            'r(b,a)',
-            'r(b,b)'
-        ]))
+        target_pred = u.str2pred('r/2')
+        preds_ext = [u.str2pred('p/2'), u.str2pred('q/2')]
+        preds_aux = []
+        language_model = LanguageModel(target_pred, preds_ext, constants)
+        program_template = ProgramTemplate(preds_aux, {}, 0)
+        ground_atoms = GroundAtoms(language_model, program_template)
         expected_tensor = np.array([
             [(0, 0),
              (0, 0)],
@@ -274,50 +188,25 @@ class TestInferrer(unittest.TestCase):
              (4, 8)]
         ])
         result = i.make_xc_tensor(xc, constants, tau, ground_atoms)
-        self.assertEqual(result.tolist(), expected_tensor.tolist())
+        self.assertEqual(result.numpy().tolist(), expected_tensor.tolist())
 
     def test_fc(self):
-        # def fc(a, c: Clause, ground_atoms: List[GroundAtom], constants, tau: RuleTemplate):
-        a = np.array([0, 1, 0.9, 0, 0, 0.1, 0, 0.2, 0.8, 0, 0, 0, 0])
-        clause = c.Clause.from_str('r(X,Y)<-p(X,Z), q(Z,Y)')
-        ground_atoms = list(map(u.str2ground_atom, [
-            'p(a,a)',
-            'p(a,b)',
-            'p(b,a)',
-            'p(b,b)',
-            'q(a,a)',
-            'q(a,b)',
-            'q(b,a)',
-            'q(b,b)',
-            'r(a,a)',
-            'r(a,b)',
-            'r(b,a)',
-            'r(b,b)'
-        ]))
-        constants = {Constant('a'), Constant('b')}
-        tau = RuleTemplate((1, False))
-        expected_a_apostrophe = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0.18, 0.72, 0, 0])
-        a_apostrophe = i.fc(a, clause, ground_atoms, constants, tau)
-        try:
-            np.testing.assert_array_almost_equal(a_apostrophe, expected_a_apostrophe)
-            self.assertTrue(True)
-        except AssertionError:
-            self.assertTrue(False)
-
-    def test_fc_alt(self):
         target_pred = u.str2pred('r/2')
         preds_ext = [u.str2pred('p/2'), u.str2pred('q/2')]
         preds_aux = []
         language_model = LanguageModel(target_pred, preds_ext, [Constant('a'), Constant('b')])
-        program_template = ProgramTemplate(preds_aux, {}, 0)
+        rules = {target_pred: (RuleTemplate((1, True)), RuleTemplate((1, False)))}
+        program_template = ProgramTemplate(preds_aux, rules, 0)
         ground_atoms = GroundAtoms(language_model, program_template)
 
-        a = np.array([0, 1, 0.9, 0, 0, 0.1, 0, 0.2, 0.8, 0, 0, 0, 0])
+        a = tf.convert_to_tensor(np.array([0, 1, 0.9, 0, 0, 0.1, 0, 0.2, 0.8, 0, 0, 0, 0]))
         clause = c.Clause.from_str('r(X,Y)<-p(X,Z), q(Z,Y)')
-        constants = {Constant('a'), Constant('b')}
         tau = RuleTemplate((1, False))
         expected_a_apostrophe = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0.18, 0.72, 0, 0])
-        a_apostrophe = i.fc_alt(a, clause, ground_atoms, constants, tau)
+        with tf.device('/CPU:0'):
+            xc = i.make_xc(clause, ground_atoms)
+            xc_tensor = i.make_xc_tensor(xc, language_model.constants, tau, ground_atoms)
+            a_apostrophe = i.fc(a, xc_tensor)
         try:
             np.testing.assert_array_almost_equal(a_apostrophe, expected_a_apostrophe)
             self.assertTrue(True)

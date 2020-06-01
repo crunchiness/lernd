@@ -3,29 +3,30 @@
 __author__ = "Ingvaras Merkys"
 
 import itertools
-from typing import Dict, List, Tuple
+from typing import Dict, List, OrderedDict, Tuple
 
-from autograd import numpy as np  # Thinly-wrapped version of Numpy
-from autograd import grad
+import tensorflow as tf
+import numpy as np
 from ordered_set import OrderedSet
 
 import lernd.util as u
 from lernd.classes import GroundAtoms, ILP, LanguageModel, ProgramTemplate
 from lernd.generator import f_generate
-from lernd.inferrer import f_infer
+from lernd.inferrer import Inferrer
 from lernd.lernd_types import GroundAtom, Predicate, RuleTemplate
 
 
-def f_convert(background_axioms: List[GroundAtom], ground_atoms: GroundAtoms) -> np.ndarray:
+def all_variables(weights):
+    return [weights_ for weights_ in weights.values()]
+
+
+def f_convert(background_axioms: List[GroundAtom], ground_atoms: GroundAtoms) -> tf.Tensor:
     # non-differentiable operation
     # order must be the same as in ground_atoms
-    return np.array([0] + [1 if gamma in background_axioms else 0 for gamma in ground_atoms.all_ground_atom_generator()])
-
-
-def f_extract(valuation: np.ndarray, gamma: GroundAtom, ground_atoms: GroundAtoms) -> float:
-    # differentiable operation
-    # extracts valuation value of a particular atom gamma
-    return valuation[ground_atoms.get_ground_atom_index(gamma)]
+    return tf.convert_to_tensor(
+        [0] + [1 if gamma in background_axioms else 0 for gamma in ground_atoms.all_ground_atom_generator()],
+        dtype=np.float32
+    )
 
 
 def get_ground_atoms(language_model: LanguageModel, program_template: ProgramTemplate) -> List[GroundAtom]:
@@ -37,6 +38,22 @@ def get_ground_atoms(language_model: LanguageModel, program_template: ProgramTem
         for constant_combination in itertools.product(language_model.constants, repeat=u.arity(pred)):
             ground_atoms.append(GroundAtom((pred, constant_combination)))
     return ground_atoms
+
+
+def make_lambda(
+        positive_examples: List[GroundAtom],
+        negative_examples: List[GroundAtom],
+        ground_atoms: GroundAtoms
+) -> Tuple[tf.Tensor, tf.Tensor]:
+    example_indices = []
+    example_values = []
+    for ground_atom in positive_examples:
+        example_indices.append(ground_atoms.get_ground_atom_index(ground_atom))
+        example_values.append(1)
+    for ground_atom in negative_examples:
+        example_indices.append(ground_atoms.get_ground_atom_index(ground_atom))
+        example_values.append(0)
+    return tf.convert_to_tensor(example_indices, dtype=np.int32), tf.convert_to_tensor(example_values, dtype=np.float32)
 
 
 class Lernd:
@@ -51,8 +68,14 @@ class Lernd:
         print('Generating ground atoms...')
         self._ground_atoms = GroundAtoms(self._language_model, self._program_template)
 
+        print('Making big lambda...')
+        self._big_lambda = make_lambda(ilp_problem.positive_examples, ilp_problem.negative_examples, self._ground_atoms)
+
         print('Generating initial valuation...')
         self._initial_valuation = f_convert(self._ilp_problem.background_axioms, self._ground_atoms)
+
+        print('Initializing Inferrer')
+        self._inferrer = Inferrer(self._ground_atoms, self._language_model, self._clauses, self._program_template)
 
     @property
     def ilp_problem(self) -> ILP:
@@ -78,32 +101,26 @@ class Lernd:
     def ground_atoms(self) -> GroundAtoms:
         return self._ground_atoms
 
+    @property
+    def big_lambda(self) -> Tuple[tf.Tensor, tf.Tensor]:
+        return self._big_lambda
+
     # loss is cross-entropy
-    def loss(self, big_lambda: Dict[GroundAtom, int],
-             weights: Dict[Predicate, np.matrix]
-             ):
-        return - np.mean([
-            small_lambda * np.log(self._p(alpha, weights, self._initial_valuation)) +
-            (1 - small_lambda) * np.log(1 - self._p(alpha, weights, self._initial_valuation))
-            for (alpha, small_lambda) in big_lambda.items()
-        ])
+    def loss(self, weights: OrderedDict[Predicate, tf.Variable]) -> Tuple[tf.Tensor, tf.Tensor]:
+        alphas, small_lambdas = self._big_lambda
+        valuation = self._inferrer.f_infer(self._initial_valuation, weights)
 
-    def loss_and_grad(self, big_lambda: Dict[GroundAtom, int], weights: Dict[Predicate, np.matrix]):
-        print('Calculating loss...')
-        loss = self.loss(big_lambda, weights)
-        print('Calculating loss grad...')
-        grad_ = grad(self.loss)(big_lambda, weights)
-        return loss, grad_
+        # Extracting predictions for given (positive and negative) examples (f_extract)
+        predictions = tf.gather(valuation, alphas)
 
-    # p(lambda|alpha,W,Pi,L,B) - given a particular atom, weights, program template, language model, and background
-    # assumptions gives the probability of label of alpha (which is 0 or 1).
-    def _p(self, alpha: GroundAtom, weights: Dict[Predicate, np.matrix], initial_valuation: np.ndarray) -> float:
-        valuation = f_infer(
-            initial_valuation,
-            self._clauses,
-            weights,
-            self._program_template.forward_chaining_steps,
-            self._language_model,
-            self._ground_atoms
-        )
-        return f_extract(valuation, alpha, self._ground_atoms)
+        return -tf.reduce_mean(
+            input_tensor=small_lambdas * tf.math.log(predictions + 1e-10) +
+            (1 - small_lambdas) * tf.math.log(1 - predictions + 1e-10)
+        ), valuation
+
+    def grad(self, weights: OrderedDict[Predicate, tf.Variable]) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
+        with tf.GradientTape() as tape:
+            print('Calculating loss...')
+            loss_value, valuation = self.loss(weights)
+        print('Calculating loss gradient...')
+        return tape.gradient(loss_value, all_variables(weights)), loss_value, valuation

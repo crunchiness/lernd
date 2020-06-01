@@ -1,54 +1,53 @@
-# LERND (work in progress)
+# LERND
 
-My attempt to implement the algorithm from the paper
+My implementation of the algorithm from the paper
 [Learning Explanatory Rules from Noisy Data](https://arxiv.org/abs/1711.04574).
 
-## Set up
+## Set up and run
 
-First you'll need to install conda package manager. Follow instructions at [anaconda.com](https://www.anaconda.com).
-This project uses standard Python 3.7 environment provided by Anaconda.
+### Step 1
+Run Lernd on Python 3.7+
 
-To create the environment (named lernd):
+You may create a conda environment (here named "lernd"):
 ```bash
-conda create -n lernd python=3.7 scipy=1.3.1
+conda create -n lernd python=3.7
 ```
+
+(Follow instructions at [anaconda.com](https://www.anaconda.com) to get and install the conda package manager.)
+
 
 Activate the environment:
 ```bash
 conda activate lernd
 ```
 
-Install requirements from `requirements.txt`:
+### Step 2
+Install requirements:
 ```bash
 pip install -r requirements.txt
 ```
 
-## Run tests
+### Step 3
+Run experiments.
 
-To run tests:
+Some benchmark problems are defined in file `lernd/experiments.py`.
+
+You may run lernd on them:
 ```bash
-./test.sh
+conda activate lernd  # activate environment if using conda
+python -m lernd.experiments
 ```
-or
+
+
+## Tests
+
+Unit tests are in `lernd/test.py`. 
+
+Run them:
 ```bash
-python3 -m lernd.experiments  # with "lernd" env active
+conda activate lernd  # activate environment if using conda
+python -m lernd.test
 ```
 
-## Current state of affairs
-
-Main issues at the moment are:
-* inferrer is too slow,
-* autograd does not work due to ints, so need to try and figure out how to circumvent that (try JAX),
-* optimizer (like SGD) is not implemented
-
-
-## Experiments
-
-To run experiments (not fully implemented, but makes inferrer work):
-```bash
-./experiments.sh
-```
-or
-```bash
-python3 -m lernd.experiments  # with "lernd" env active
-```
+## Details
+A write up (possibly incl. IPyton notebook) is coming!

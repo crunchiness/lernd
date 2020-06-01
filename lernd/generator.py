@@ -14,9 +14,10 @@ from .classes import Clause, LanguageModel, ProgramTemplate
 from .lernd_types import Atom, Predicate, RuleTemplate, Variable
 
 
-def f_generate(program_template: ProgramTemplate,
-               language_model: LanguageModel
-               ) -> Dict[Predicate, Tuple[Tuple['OrderedSet[Clause]', RuleTemplate], Tuple['OrderedSet[Clause]', RuleTemplate]]]:
+def f_generate(
+        program_template: ProgramTemplate,
+        language_model: LanguageModel
+) -> Dict[Predicate, Tuple[Tuple['OrderedSet[Clause]', RuleTemplate], Tuple['OrderedSet[Clause]', RuleTemplate]]]:
     # non-differentiable operation
     preds_int = program_template.preds_aux + [language_model.target]  # type: List[Predicate]
     clauses = {}

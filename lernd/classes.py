@@ -25,6 +25,9 @@ class Clause:
     def __str__(self):
         return '{0}<-{1}'.format(u.atom2str(self._head), ', '.join(map(u.atom2str, self._body)))
 
+    def __repr__(self):
+        return f'"{self.__str__()}"'
+
     @property
     def head(self) -> Atom:
         return self._head
@@ -166,13 +169,19 @@ class MaybeGroundAtom:
         groundedness = [False] * u.arity(pred)
         return cls(pred, args, groundedness)
 
+    @classmethod
+    def from_pred(cls, pred: Predicate):
+        args = [Variable(f'tmp{i}') for i in range(u.arity(pred))]
+        groundedness = [False] * u.arity(pred)
+        return cls(pred, args, groundedness)
+
     def __str__(self):
-        str = ''
-        str += self._pred[0] + '('
+        string = ''
+        string += self._pred[0] + '('
         for i in range(self.arity):
-            str += self._args[i][0]
-        str += ')'
-        return str
+            string += self._args[i][0]
+        string += ')'
+        return string
 
     def copy(self):
         return type(self)(self._pred, [self.arg_at(i) for i in range(self._len)], [self.const_at(i) for i in range(self._len)])
@@ -221,7 +230,7 @@ class GroundAtoms:
         else:
             raise Exception()  # TODO: something better
 
-    def all_ground_atom_generator(self) -> Iterable[Tuple[GroundAtom]]:
+    def all_ground_atom_generator(self) -> Iterable[GroundAtom]:
         for pred in self._preds:
             arity = u.arity(pred)
             if arity == 0:

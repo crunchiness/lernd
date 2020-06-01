@@ -2,103 +2,66 @@
 
 __author__ = "Ingvaras Merkys"
 
-import copy
-from typing import Dict, List, Tuple
+from collections import defaultdict
+from typing import Dict, List, OrderedDict, Tuple
 
-from autograd import numpy as np  # Thinly-wrapped version of Numpy
+import numpy as np
+import tensorflow as tf
 from ordered_set import OrderedSet
-from scipy.special import softmax
 
-from lernd.classes import Clause, GroundAtoms, LanguageModel, MaybeGroundAtom
-from lernd.lernd_types import Atom, Constant, GroundAtom, Predicate, RuleTemplate, Variable
-
-
-def f_infer(initial_valuation: np.ndarray,  # 1D array of ground atom valuations
-            clauses: Dict[Predicate, Tuple[Tuple['OrderedSet[Clause]', RuleTemplate], Tuple['OrderedSet[Clause]', RuleTemplate]]],
-            weights: Dict[Predicate, np.matrix],
-            forward_chaining_steps: int,
-            language_model: LanguageModel,
-            ground_atoms: GroundAtoms) -> np.ndarray:
-    # differentiable operation
-    a = initial_valuation
-    for t in range(forward_chaining_steps):
-        print('Inference step:', t)
-        bt = np.zeros(np.shape(initial_valuation))
-        # lists of clauses are of different sizes
-        for pred, ((clauses_1, tau1), (clauses_2, tau2)) in clauses.items():
-            sm = softmax(weights[pred])
-            bt = np.zeros(np.shape(initial_valuation))
-            for j in range(len(clauses_1)):
-                f1jp = fc_alt(a, clauses_1[j], ground_atoms, language_model.constants, tau1)
-                for k in range(len(clauses_2)):
-                    f2kp = fc_alt(a, clauses_2[k], ground_atoms, language_model.constants, tau2)
-                    bt += g(f1jp, f2kp) * sm[j, k]
-        a = f_amalgamate(a, bt)
-    return a
+from lernd.classes import Clause, GroundAtoms, LanguageModel, MaybeGroundAtom, ProgramTemplate
+from lernd.lernd_types import Constant, GroundAtom, Predicate, RuleTemplate
 
 
-def fc(a, c: Clause, ground_atoms: List[GroundAtom], constants, tau: RuleTemplate) -> np.ndarray:
-    def gather2(a: np.ndarray, x: np.ndarray):
-        # a is a vector, x is a matrix
-        return a[x]
+class Inferrer:
+    def __init__(self,
+                 ground_atoms: GroundAtoms,
+                 language_model: LanguageModel,
+                 clauses: Dict[
+                     Predicate,
+                     Tuple[Tuple[OrderedSet[Clause], RuleTemplate], Tuple[OrderedSet[Clause], RuleTemplate]]
+                 ],
+                 program_template: ProgramTemplate):
+        self.xc_tensors = {}
+        self.ground_atoms = ground_atoms
+        self.language_model = language_model
+        self.clauses = clauses
+        self.forward_chaining_steps = program_template.forward_chaining_steps
+        self.xc_tensors = self._init_tensors()
 
-    def fuzzy_and(y1: np.ndarray, y2: np.ndarray):
-        # product t-norm, element-wise multiplication
-        return np.multiply(y1, y2)
-    xc = make_xc(c, ground_atoms)
-    xc_tensor = make_xc_tensor(xc, constants, tau, ground_atoms)
-    x1 = xc_tensor[:, :, 0]
-    x2 = xc_tensor[:, :, 1]
-    y1 = gather2(a, x1)
-    y2 = gather2(a, x2)
-    z = fuzzy_and(y1, y2)
-    return np.max(z, axis=1)
+    def _init_tensors(self):
+        print('Inferrer initializing xc tensors...')
+        tensors = defaultdict(list)
+        for pred, clauses in self.clauses.items():
+            for clauses_, tau in clauses:
+                tensors[pred].append([
+                    make_xc_tensor(xc, self.language_model.constants, tau, self.ground_atoms)
+                    for xc in [make_xc(c, self.ground_atoms) for c in clauses_]
+                ])
+        return tensors
 
-
-def fc_alt(a, c: Clause, ground_atoms: GroundAtoms, constants, tau: RuleTemplate) -> np.ndarray:
-    def gather2(a: np.ndarray, x: np.ndarray):
-        # a is a vector, x is a matrix
-        return a[x]
-
-    def fuzzy_and(y1: np.ndarray, y2: np.ndarray):
-        # product t-norm, element-wise multiplication
-        return np.multiply(y1, y2)
-    xc = make_xc_alt(c, ground_atoms)
-    xc_tensor = make_xc_tensor_alt(xc, constants, tau, ground_atoms)
-    x1 = xc_tensor[:, :, 0]
-    x2 = xc_tensor[:, :, 1]
-    y1 = gather2(a, x1)
-    y2 = gather2(a, x2)
-    z = fuzzy_and(y1, y2)
-    return np.max(z, axis=1)
-
-
-def make_xc(c: Clause, ground_atoms: List[GroundAtom]) -> List[Tuple[GroundAtom, List[Tuple[int, int]]]]:
-    """Creates a Xc - a set of [sets of [pairs of [indices of ground atoms]]] for clause c
-    """
-    xc = []
-    head_pred, head_vars = c.head
-
-    # for ground_atom that matches the head
-    for ground_atom in ground_atoms:
-        if ground_atom[0] == head_pred:
-            ga_consts = ground_atom[1]
-
-            # create substitution based on the head atom
-            substitution = {}
-            for var, const in zip(head_vars, ga_consts):
-                substitution[var] = const
-
-            # find all pairs of ground atoms for the body of this clause satisfying the substitution
-            pairs = xc_rec(c.body, ground_atoms, substitution)
-            xc.append((ground_atom, pairs))
-        else:
-            xc.append((ground_atom, []))
-    return xc
+    def f_infer(self, a: tf.Tensor, weights: OrderedDict[Predicate, tf.Variable]) -> tf.Tensor:
+        # differentiable operation
+        for t in range(self.forward_chaining_steps):
+            bt = tf.zeros(shape=np.shape(a))
+            print('Inference step:', t)
+            for pred, (tensors1, tensors2) in self.xc_tensors.items():
+                c_p = []
+                f1jps = [fc(a, tensor) for tensor in tensors1]
+                f2kps = [fc(a, tensor) for tensor in tensors2]
+                for f1jp in f1jps:
+                    for f2kp in f2kps:
+                        c_p.append(tf.math.maximum(f1jp, f2kp))
+                pred_weights = tf.reshape(weights[pred], [-1])
+                sm = tf.nn.softmax(pred_weights)[:, np.newaxis]
+                bt += tf.reduce_sum(input_tensor=tf.math.multiply(tf.stack(c_p), sm), axis=0)
+            # f_amalgamate - probabilistic sum (t-conorm)
+            a = a + bt - tf.math.multiply(a, bt)
+        return a
 
 
-def make_xc_alt(c: Clause, ground_atoms: GroundAtoms) -> List[Tuple[GroundAtom, List[Tuple[int, int]]]]:
-    """Creates a Xc - a set of [sets of [pairs of [indices of ground atoms]]] for clause c
+def make_xc(c: Clause, ground_atoms: GroundAtoms) -> List[Tuple[GroundAtom, List[Tuple[int, int]]]]:
+    """Creates an Xc - a set of [sets of [pairs of [indices of ground atoms]]] for clause c
     """
     xc = []
     head_pred, head_vars = c.head
@@ -124,92 +87,45 @@ def make_xc_alt(c: Clause, ground_atoms: GroundAtoms) -> List[Tuple[GroundAtom, 
     return xc
 
 
-def xc_rec(clause_body: Tuple[Atom, ...],
-           ground_atoms: List[GroundAtom],
-           substitution: Dict[Variable, Constant],
-           indices: Tuple[int, ...] = tuple(),
-           call_number: int = 0
-           ) -> List[Tuple[int, ...]]:
-
-    # base case
-    if len(clause_body) == call_number:
-        return [indices]
-
-    atom_pred, atom_vars = clause_body[call_number]
-    result = []
-
-    # for ground_atom that matches this atom
-    for i, ground_atom in enumerate(ground_atoms):
-        if ground_atom[0] != atom_pred:
-            continue
-        ga_consts = ground_atom[1]
-
-        # additional substitutions
-        new_substitution = []
-        for var, const in zip(atom_vars, ga_consts):
-
-            # if incompatible with current substitution, discard ground_atom
-            if var in substitution and substitution[var] != const:
-                new_substitution = []
-                break
-
-            # otherwise add to substitution
-            else:
-                new_substitution.append((var, const))
-
-        # if new substitutions added, merge them and recurse
-        if len(new_substitution) > 0:
-            substitution_ = substitution.copy()
-            for key, value in new_substitution:
-                substitution_[key] = value
-            result += xc_rec(clause_body, ground_atoms, substitution_, tuple(list(indices) + [i + 1]), call_number + 1)
-    return result
-
-
-def make_xc_tensor(xc: List[Tuple[GroundAtom, List[Tuple[int, ...]]]],
-                   constants: List[Constant],
-                   tau: RuleTemplate,
-                   ground_atoms: List[GroundAtom]
-                   ) -> np.ndarray:
-    """Returns tensor of indices
-    """
-    n = len(ground_atoms) + 1  # plus falsum
-    v = tau[0]
-    w = len(constants) ** v
-
-    xc_tensor = np.empty((n, w, 2), dtype=int)
-    xc_tensor[0] = np.zeros((w, 2))
-    for k, (_, xk_indices) in enumerate(xc):
-        for m in range(w):
-            if m < len(xk_indices):
-                xc_tensor[k + 1][m] = xk_indices[m]
-            else:
-                xc_tensor[k + 1][m] = (0, 0)
-    return xc_tensor
-
-
-def make_xc_tensor_alt(xc: List[Tuple[GroundAtom, List[Tuple[int, ...]]]],
-                       constants: List[Constant],
-                       tau: RuleTemplate,
-                       ground_atoms: GroundAtoms
-                       ) -> np.ndarray:
-    """Returns tensor of indices
+def make_xc_tensor(
+        xc: List[Tuple[GroundAtom, List[Tuple[int, int]]]],
+        constants: List[Constant],
+        tau: RuleTemplate,
+        ground_atoms: GroundAtoms
+) -> tf.Tensor:
+    """Returns a tensor of indices
     """
     n = ground_atoms.len
     v = tau[0]
     w = len(constants) ** v
-    xc_tensor = np.zeros((n, w, 2), dtype=int)
+    xc_tensor = np.zeros((n, w, 2), dtype=np.int32)
 
     for ground_atom, xk_indices in xc:
         index = ground_atoms.get_ground_atom_index(ground_atom)
-        xc_tensor[index] = xk_indices
-    return xc_tensor
+        if xk_indices:
+            xc_tensor[index] = pad_indices(xk_indices, w)
+    return tf.convert_to_tensor(xc_tensor)
 
 
-def g(f1: np.ndarray, f2: np.ndarray) -> np.ndarray:
-    return np.maximum(f1, f2)
+def pad_indices(indices: List[Tuple[int, int]], n: int) -> List[Tuple[int, int]]:
+    m = len(indices)
+    if m == n:
+        return indices
+    new_indices = []
+    for i in range(n):
+        if i < m:
+            new_indices.append(indices[i])
+        else:
+            new_indices.append((0, 0))
+    return new_indices
 
 
-def f_amalgamate(x: np.ndarray, y: np.ndarray) -> np.ndarray:
-    # probabilistic sum (t-conorm)
-    return x + y - np.multiply(x, y)
+def fc(a: tf.Tensor, xc_tensor: tf.Tensor) -> tf.Tensor:
+    x1 = xc_tensor[:, :, 0]
+    x2 = xc_tensor[:, :, 1]
+    y1 = tf.gather(params=a, indices=x1)
+    y2 = tf.gather(params=a, indices=x2)
+
+    # fuzzy_and - product t-norm, element-wise multiplication
+    z = tf.math.multiply(y1, y2)
+    return tf.reduce_max(input_tensor=z, axis=1)

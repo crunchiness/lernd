@@ -2,71 +2,88 @@
 
 __author__ = "Ingvaras Merkys"
 
-from itertools import product
-from lernd.classes import ILP, LanguageModel, ProgramTemplate
+import os
+import tensorflow as tf
+
+from lernd.classes import GroundAtoms, ILP, LanguageModel, MaybeGroundAtom, ProgramTemplate
 from lernd.main import main_loop
-from lernd.lernd_types import Constant, GroundAtom, Predicate, RuleTemplate
-from lernd.util import ground_atom2str
+from lernd.lernd_types import Constant, RuleTemplate
+from lernd.util import ground_atom2str, str2ground_atom, str2pred
 
 
-def empty():
+def print_BPN(ilp_problem: ILP):
+    background = ilp_problem.background_axioms
+    positive = ilp_problem.positive_examples
+    negative = ilp_problem.negative_examples
+    print('background_axioms\n', list(map(ground_atom2str, background)), '\n')
+    print('positive_examples\n', list(map(ground_atom2str, positive)), '\n')
+    print('negative_examples\n', list(map(ground_atom2str, negative)), '\n')
+
+
+def setup_even():
+    print('Setting up "Even" problem...')
     # Language model
-    target_pred = Predicate(('q', 2))
-    preds_ext = []  # Set of extensional predicates
-    constants = []  # Set of constants
+    target_pred = str2pred('even/1')
+    zero_pred = str2pred('zero/1')
+    succ_pred = str2pred('succ/2')
+    preds_ext = [zero_pred, succ_pred]
+    constants = [Constant(str(i)) for i in range(11)]
     language_model = LanguageModel(target_pred, preds_ext, constants)
 
+    # Program template
+    aux_pred = str2pred('pred/2')
+    aux_preds = [aux_pred]
+    rules = {
+        target_pred: (RuleTemplate((0, False)), RuleTemplate((1, True))),
+        aux_pred: (RuleTemplate((1, False)), RuleTemplate((1, False)))
+    }
+    program_template = ProgramTemplate(aux_preds, rules, 10)
+
     # ILP problem
-    background_axioms = []  # Background assumptions
-    positive_examples = []  # Positive examples
-    negative_examples = []  # Negative examples
-    ilp_problem = ILP(language_model, background_axioms, positive_examples, negative_examples)
+    ground_zero = str2ground_atom('zero(0)')
+    background = [ground_zero] + [str2ground_atom(f'succ({i},{i + 1})') for i in range(10)]
+    positive = [str2ground_atom(f'even({i})') for i in range(0, 11, 2)]
+    negative = [str2ground_atom(f'even({i})') for i in range(1, 10, 2)]
+    ilp_problem = ILP(language_model, background, positive, negative)
+    return ilp_problem, program_template
+
+
+def setup_predecessor():
+    print('Setting up "Predecessor" problem...')
+
+    # Language model
+    target_pred = str2pred('predecessor/2')
+    zero_pred = str2pred('zero/1')
+    succ_pred = str2pred('succ/2')
+    preds_ext = [zero_pred, succ_pred]
+    constants = [Constant(str(i)) for i in range(10)]
+    language_model = LanguageModel(target_pred, preds_ext, constants)
 
     # Program template
     preds_aux = []
-    # Dict (predicate p: tuple of rule templates (tau1, tau2))
-    rules = {Predicate(('q', 2)): (RuleTemplate((0, False)), RuleTemplate((1, True)))}
-    forward_chaining_steps = 0
+    rules = {target_pred: (RuleTemplate((0, False)), RuleTemplate((0, False)))}
+    forward_chaining_steps = 4
     program_template = ProgramTemplate(preds_aux, rules, forward_chaining_steps)
 
-    main_loop(ilp_problem, program_template)
-
-
-def predecessor(do_print=False):
-    # Language model
-    target_pred = Predicate(('target', 2))
-    zero_pred = Predicate(('zero', 1))
-    succ_pred = Predicate(('succ', 2))
-    preds_ext = [zero_pred, succ_pred]
-    constants = [Constant(str(i)) for i in range(0, 10)]
-    language_model = LanguageModel(target_pred, preds_ext, constants)
-
     # ILP problem
-    ground_zero = GroundAtom((zero_pred, (constants[0],)))
-    background_axioms = [ground_zero] + list(map(lambda i: GroundAtom((succ_pred, (constants[i - 1], constants[i]))), range(1, 10)))
-    positive_examples = list(map(lambda i: GroundAtom((target_pred, (constants[i], constants[i - 1]))), range(1, 10)))
-    negative_examples = []  # Negative examples
-    for const1, const2 in product(constants, constants):
-        ground_atom = GroundAtom((target_pred, (const1, const2)))
+    ground_zero = str2ground_atom('zero(0)')
+    background_axioms = [ground_zero] + [str2ground_atom(f'succ({i},{i + 1})') for i in range(9)]
+    positive_examples = [str2ground_atom(f'predecessor({i + 1},{i})') for i in range(9)]
+
+    ground_atoms = GroundAtoms(language_model, program_template)
+    negative_examples = []
+    for ground_atom, _ in ground_atoms.ground_atom_generator(MaybeGroundAtom.from_pred(target_pred)):
         if ground_atom not in positive_examples:
             negative_examples.append(ground_atom)
-    if do_print:
-        print('background_axioms\n', list(map(ground_atom2str, background_axioms)), '\n')
-        print('positive_examples\n', list(map(ground_atom2str, positive_examples)), '\n')
-        print('negative_examples\n', list(map(ground_atom2str, negative_examples)), '\n')
+
     ilp_problem = ILP(language_model, background_axioms, positive_examples, negative_examples)
-
-    # Program template
-    preds_aux = []
-    # rules = {}  # TODO: ?
-    rules = {target_pred: (RuleTemplate((0, False)), RuleTemplate((1, True)))}
-    forward_chaining_steps = 10  # TODO: ??
-    program_template = ProgramTemplate(preds_aux, rules, forward_chaining_steps)
-
-    main_loop(ilp_problem, program_template)
-
-    # TODO: finish
+    return ilp_problem, program_template
 
 
-# empty()
-predecessor()
+if __name__ == '__main__':
+    # Disable Tensorflow logs
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    with tf.device('/CPU:0'):
+        ilp_problem, program_template = setup_predecessor()
+        print_BPN(ilp_problem)
+        main_loop(ilp_problem, program_template, steps=100)
