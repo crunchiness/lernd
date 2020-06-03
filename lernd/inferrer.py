@@ -44,7 +44,7 @@ class Inferrer:
         # differentiable operation
         for t in range(self.forward_chaining_steps):
             bt = tf.zeros(shape=np.shape(a))
-            print('Inference step:', t)
+            # print('Inference step:', t)
             for pred, (tensors1, tensors2) in self.xc_tensors.items():
                 c_p = []
                 f1jps = [fc(a, tensor) for tensor in tensors1]

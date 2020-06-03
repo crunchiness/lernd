@@ -120,7 +120,7 @@ class Lernd:
 
     def grad(self, weights: OrderedDict[Predicate, tf.Variable]) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
         with tf.GradientTape() as tape:
-            print('Calculating loss...')
+            # print('Calculating loss...')
             loss_value, valuation = self.loss(weights)
-        print('Calculating loss gradient...')
+        # print('Calculating loss gradient...')
         return tape.gradient(loss_value, all_variables(weights)), loss_value, valuation

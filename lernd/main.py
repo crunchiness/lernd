@@ -70,7 +70,9 @@ def main_loop(ilp_problem: ILP, program_template: ProgramTemplate, learning_rate
         optimizer.apply_gradients(zip(loss_grad, list(weights.values())))
         loss_float = float(loss.numpy())
         losses.append(loss_float)
-        extract_definitions(lernd_model.clauses, weights)
-        ground_atom_probs = get_ground_atom_probs(valuation, lernd_model.ground_atoms)
-        print_valuations(ground_atom_probs)
-        print(f'Step {i} loss: {loss_float}\n')
+        if i % 10 == 0:
+            print(f'Step {i} loss: {loss_float}\n')
+        if i == steps:
+            extract_definitions(lernd_model.clauses, weights)
+            ground_atom_probs = get_ground_atom_probs(valuation, lernd_model.ground_atoms)
+            print_valuations(ground_atom_probs)
