@@ -1,7 +1,8 @@
 # LERND
 
-My implementation of the algorithm from the paper
-[Learning Explanatory Rules from Noisy Data](https://arxiv.org/abs/1711.04574).
+Lernd stands for [Learning Explanatory Rules from Noisy Data](https://arxiv.org/abs/1711.04574).
+It is my implementation of the algorithm in the linked paper.
+
 
 ## Set up and run
 

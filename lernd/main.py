@@ -43,12 +43,17 @@ def extract_definitions(
     for pred, ((clauses_1, tau1), (clauses_2, tau2)) in clauses.items():
         shape = weights[pred].shape
         pred_weights = tf.reshape(weights[pred], [-1])
-        pred_probs = tf.reshape(tf.nn.softmax(pred_weights)[:, np.newaxis], shape)
-        indices = np.nonzero(pred_probs > clause_prob_threshold)
+        pred_probs_flat = tf.nn.softmax(pred_weights)
+        max_value = np.max(pred_probs_flat)
+        clause_prob_threshold = min(max_value, clause_prob_threshold)
+        pred_probs = tf.reshape(pred_probs_flat[:, np.newaxis], shape)
+        print('clause_prob_threshold', clause_prob_threshold)
+        indices = np.nonzero(pred_probs >= clause_prob_threshold)
         for index_tuple in zip(indices[0], indices[1]):
             print(f'Probability: {pred_probs[index_tuple]}')
             print(clauses_1[index_tuple[0]])
             print(clauses_2[index_tuple[1]])
+        print()
 
 
 def print_valuations(ground_atom_probs: typing.OrderedDict[GroundAtom, float], threshold: float = 0.01):
@@ -57,11 +62,19 @@ def print_valuations(ground_atom_probs: typing.OrderedDict[GroundAtom, float], t
             print(f'{ground_atom2str(ground_atom)} - {p}')
 
 
-def main_loop(ilp_problem: ILP, program_template: ProgramTemplate, learning_rate: float = 0.5, steps: int = 6000):
-    lernd_model = Lernd(ilp_problem, program_template)
+def main_loop(
+        ilp_problem: ILP,
+        program_template: ProgramTemplate,
+        learning_rate: float = 0.5,
+        steps: int = 6000,
+        mini_batch: float = 1.0,
+        weight_stddev: float = 0.05,
+        clause_prob_threshold: float = 0.1
+):
+    lernd_model = Lernd(ilp_problem, program_template, mini_batch=mini_batch)
 
     print('Generating weight matrices...')
-    weights = generate_weight_matrices(lernd_model.clauses)
+    weights = generate_weight_matrices(lernd_model.clauses, stddev=weight_stddev)
 
     losses = []
     optimizer = tf.keras.optimizers.RMSprop(learning_rate=learning_rate)
@@ -73,6 +86,6 @@ def main_loop(ilp_problem: ILP, program_template: ProgramTemplate, learning_rate
         if i % 10 == 0:
             print(f'Step {i} loss: {loss_float}\n')
         if i == steps:
-            extract_definitions(lernd_model.clauses, weights)
+            extract_definitions(lernd_model.clauses, weights, clause_prob_threshold=clause_prob_threshold)
             ground_atom_probs = get_ground_atom_probs(valuation, lernd_model.ground_atoms)
             print_valuations(ground_atom_probs)

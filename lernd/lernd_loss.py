@@ -57,10 +57,14 @@ def make_lambda(
 
 
 class Lernd:
-    def __init__(self, ilp_problem: ILP, program_template: ProgramTemplate):
+    def __init__(self, ilp_problem: ILP, program_template: ProgramTemplate, mini_batch: float = 1.0):
         self._ilp_problem = ilp_problem
         self._language_model = ilp_problem.language_model
         self._program_template = program_template
+        self._mini_batch = mini_batch
+
+        # Random number generator
+        self._rng = np.random.default_rng()
 
         print('Generating clauses...')
         self._clauses = f_generate(self._program_template, self._language_model)
@@ -113,9 +117,16 @@ class Lernd:
         # Extracting predictions for given (positive and negative) examples (f_extract)
         predictions = tf.gather(valuation, alphas)
 
+        if self._mini_batch < 1:
+            num_examples = len(alphas)
+            batch_size = int(self._mini_batch * num_examples)
+            indices = self._rng.choice(num_examples, batch_size, replace=False)
+            small_lambdas = tf.gather(small_lambdas, indices)
+            predictions = tf.gather(predictions, indices)
+
         return -tf.reduce_mean(
-            input_tensor=small_lambdas * tf.math.log(predictions + 1e-10) +
-            (1 - small_lambdas) * tf.math.log(1 - predictions + 1e-10)
+            input_tensor=small_lambdas * tf.math.log(predictions + 1e-12) +
+            (1 - small_lambdas) * tf.math.log(1 - predictions + 1e-12)
         ), valuation
 
     def grad(self, weights: OrderedDict[Predicate, tf.Variable]) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor]:

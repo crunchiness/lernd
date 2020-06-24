@@ -29,7 +29,7 @@ class Inferrer:
         self.forward_chaining_steps = program_template.forward_chaining_steps
         self.xc_tensors = self._init_tensors()
 
-    def _init_tensors(self):
+    def _init_tensors(self) -> Dict[Predicate, List[List[tf.Tensor]]]:
         print('Inferrer initializing xc tensors...')
         tensors = defaultdict(list)
         for pred, clauses in self.clauses.items():
@@ -42,6 +42,12 @@ class Inferrer:
 
     def f_infer(self, a: tf.Tensor, weights: OrderedDict[Predicate, tf.Variable]) -> tf.Tensor:
         # differentiable operation
+        # softmax the weights
+        sms = {}
+        for pred in self.xc_tensors.keys():
+            pred_weights = tf.reshape(weights[pred], [-1])
+            sms[pred] = tf.nn.softmax(pred_weights)[:, np.newaxis]
+
         for t in range(self.forward_chaining_steps):
             bt = tf.zeros(shape=np.shape(a))
             # print('Inference step:', t)
@@ -49,12 +55,12 @@ class Inferrer:
                 c_p = []
                 f1jps = [fc(a, tensor) for tensor in tensors1]
                 f2kps = [fc(a, tensor) for tensor in tensors2]
+                # Check if they're the same
+                # assert all(map(lambda x: np.array_equal(x[0].numpy(), x[1].numpy()), zip(f1jps, f2kps)))
                 for f1jp in f1jps:
                     for f2kp in f2kps:
                         c_p.append(tf.math.maximum(f1jp, f2kp))
-                pred_weights = tf.reshape(weights[pred], [-1])
-                sm = tf.nn.softmax(pred_weights)[:, np.newaxis]
-                bt += tf.reduce_sum(input_tensor=tf.math.multiply(tf.stack(c_p), sm), axis=0)
+                bt += tf.reduce_sum(input_tensor=tf.math.multiply(tf.stack(c_p), sms[pred]), axis=0)
             # f_amalgamate - probabilistic sum (t-conorm)
             a = a + bt - tf.math.multiply(a, bt)
         return a
@@ -128,4 +134,4 @@ def fc(a: tf.Tensor, xc_tensor: tf.Tensor) -> tf.Tensor:
 
     # fuzzy_and - product t-norm, element-wise multiplication
     z = tf.math.multiply(y1, y2)
-    return tf.reduce_max(input_tensor=z, axis=1)
+    return tf.math.reduce_max(input_tensor=z, axis=1)
