@@ -26,7 +26,7 @@ def generate_weight_matrices(
     rule_weights = OrderedDict()
     initializer = tf.random_normal_initializer(mean=0, stddev=stddev)
     for pred, ((clauses_1, tau1), (clauses_2, tau2)) in clauses.items():
-        rule_weights[pred] = tf.Variable(initializer(shape=[len(clauses_1), len(clauses_2)]),
+        rule_weights[pred] = tf.Variable(initializer(shape=[len(clauses_1), len(clauses_2) or 1]),
                                          trainable=True,
                                          dtype=tf.float32)
     return rule_weights
@@ -47,16 +47,23 @@ def extract_definitions(
         max_value = np.max(pred_probs_flat)
         clause_prob_threshold = min(max_value, clause_prob_threshold)
         pred_probs = tf.reshape(pred_probs_flat[:, np.newaxis], shape)
-        print('clause_prob_threshold', clause_prob_threshold)
+        print(f'clause_prob_threshold: {clause_prob_threshold}\n')  # debug
+        print('Clause learnt:')
         indices = np.nonzero(pred_probs >= clause_prob_threshold)
-        for index_tuple in zip(indices[0], indices[1]):
-            print(f'Probability: {pred_probs[index_tuple]}')
-            print(clauses_1[index_tuple[0]])
-            print(clauses_2[index_tuple[1]])
+        if tau2 is not None:
+            for index_tuple in zip(indices[0], indices[1]):
+                print(f'With probability (confidence): {pred_probs[index_tuple]}')
+                print(clauses_1[index_tuple[0]])
+                print(clauses_2[index_tuple[1]])
+        else:
+            for index in indices[0]:
+                print(f'With probability (confidence): {pred_probs[index][0]}')
+                print(clauses_1[index])
         print()
 
 
 def print_valuations(ground_atom_probs: typing.OrderedDict[GroundAtom, float], threshold: float = 0.01):
+    print(f'Valuations of ground atoms (only those >{threshold} for readability):')
     for ground_atom, p in ground_atom_probs.items():
         if p > threshold:
             print(f'{ground_atom2str(ground_atom)} - {p}')

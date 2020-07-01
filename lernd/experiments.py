@@ -2,6 +2,7 @@
 
 __author__ = "Ingvaras Merkys"
 
+import argparse
 import os
 import tensorflow as tf
 
@@ -35,9 +36,10 @@ def setup_even():
     aux_preds = [aux_pred]
     rules = {
         target_pred: (RuleTemplate((0, False)), RuleTemplate((1, True))),
-        aux_pred: (RuleTemplate((1, False)), RuleTemplate((1, False)))
+        aux_pred: (RuleTemplate((1, False)), None)
     }
-    program_template = ProgramTemplate(aux_preds, rules, 10)
+    forward_chaining_steps = 6
+    program_template = ProgramTemplate(aux_preds, rules, forward_chaining_steps)
 
     # ILP problem
     ground_zero = str2ground_atom('zero(0)')
@@ -61,7 +63,7 @@ def setup_predecessor():
 
     # Program template
     preds_aux = []
-    rules = {target_pred: (RuleTemplate((0, False)), RuleTemplate((0, False)))}
+    rules = {target_pred: (RuleTemplate((0, False)), None)}
     forward_chaining_steps = 4
     program_template = ProgramTemplate(preds_aux, rules, forward_chaining_steps)
 
@@ -83,7 +85,19 @@ def setup_predecessor():
 if __name__ == '__main__':
     # Disable Tensorflow logs
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('problem', type=str, choices=['predecessor', 'even'], help='Problem to solve')
+    args = parser.parse_args()
+
     with tf.device('/CPU:0'):
-        ilp_problem, program_template = setup_predecessor()
+        if args.problem == 'predecessor':
+            ilp_problem, program_template = setup_predecessor()
+            steps = 101
+            mini_batch = 1.0  # no mini batching
+        elif args.problem == 'even':
+            ilp_problem, program_template = setup_even()
+            steps = 301
+            mini_batch = 0.3  # loss is based on 30% of random given examples
         print_BPN(ilp_problem)
-        main_loop(ilp_problem, program_template, steps=100)
+        main_loop(ilp_problem, program_template, steps=steps, mini_batch=mini_batch)

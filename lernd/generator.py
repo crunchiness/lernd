@@ -6,7 +6,7 @@ import string
 from functools import reduce
 from itertools import product
 from operator import add
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Tuple, Optional
 
 from ordered_set import OrderedSet
 
@@ -34,7 +34,7 @@ def cl(
         preds_int: List[Predicate],
         preds_ext: List[Predicate],
         pred: Predicate,
-        tau: RuleTemplate
+        tau: Optional[RuleTemplate]
 ) -> OrderedSet[Clause]:
     """Generates all possible clauses adhering the restrictions.
     Restrictions:
@@ -46,6 +46,9 @@ def cl(
     6. No duplicate (same but different order of body atoms)
     7. No those that contain an intensional predicate in the clause body, even though int flag was set to 0, false.
     """
+    if tau is None:
+        return OrderedSet()
+
     v, int_ = tau  # number of exist. quantified variables allowed, whether intensional predicates allowed in the body
 
     pred_arity = pred[1]

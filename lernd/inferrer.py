@@ -34,10 +34,11 @@ class Inferrer:
         tensors = defaultdict(list)
         for pred, clauses in self.clauses.items():
             for clauses_, tau in clauses:
-                tensors[pred].append([
-                    make_xc_tensor(xc, self.language_model.constants, tau, self.ground_atoms)
-                    for xc in [make_xc(c, self.ground_atoms) for c in clauses_]
-                ])
+                if tau is not None:
+                    tensors[pred].append([
+                        make_xc_tensor(xc, self.language_model.constants, tau, self.ground_atoms)
+                        for xc in [make_xc(c, self.ground_atoms) for c in clauses_]
+                    ])
         return tensors
 
     def f_infer(self, a: tf.Tensor, weights: OrderedDict[Predicate, tf.Variable]) -> tf.Tensor:
@@ -51,15 +52,19 @@ class Inferrer:
         for t in range(self.forward_chaining_steps):
             bt = tf.zeros(shape=np.shape(a))
             # print('Inference step:', t)
-            for pred, (tensors1, tensors2) in self.xc_tensors.items():
+            for pred, tensors in self.xc_tensors.items():
                 c_p = []
-                f1jps = [fc(a, tensor) for tensor in tensors1]
-                f2kps = [fc(a, tensor) for tensor in tensors2]
+                f1jps = [fc(a, tensor) for tensor in tensors[0]]
+                f2kps = [fc(a, tensor) for tensor in tensors[1]] if len(tensors) == 2 else None
                 # Check if they're the same
                 # assert all(map(lambda x: np.array_equal(x[0].numpy(), x[1].numpy()), zip(f1jps, f2kps)))
-                for f1jp in f1jps:
-                    for f2kp in f2kps:
-                        c_p.append(tf.math.maximum(f1jp, f2kp))
+                if f2kps is not None:
+                    for f1jp in f1jps:
+                        for f2kp in f2kps:
+                            c_p.append(tf.math.maximum(f1jp, f2kp))
+                else:
+                    c_p = f1jps
+
                 bt += tf.reduce_sum(input_tensor=tf.math.multiply(tf.stack(c_p), sms[pred]), axis=0)
             # f_amalgamate - probabilistic sum (t-conorm)
             a = a + bt - tf.math.multiply(a, bt)

@@ -3,7 +3,7 @@
 __author__ = "Ingvaras Merkys"
 
 import itertools
-from typing import Dict, Iterable, List, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 from ordered_set import OrderedSet
 
@@ -67,9 +67,9 @@ class LanguageModel:
 
 class ProgramTemplate:
     def __init__(self,
-                 preds_aux: List[Predicate],                                 # Pa
-                 rules: Dict[Predicate, Tuple[RuleTemplate, RuleTemplate]],  # rules
-                 forward_chaining_steps: int                                 # T
+                 preds_aux: List[Predicate],                                           # Pa
+                 rules: Dict[Predicate, Tuple[RuleTemplate, Optional[RuleTemplate]]],  # rules
+                 forward_chaining_steps: int                                           # T
                  ):
         self._preds_aux = preds_aux
         self._rules = rules
@@ -80,7 +80,7 @@ class ProgramTemplate:
         return self._preds_aux
 
     @property
-    def rules(self) -> Dict[Predicate, Tuple[RuleTemplate, RuleTemplate]]:
+    def rules(self) -> Dict[Predicate, Tuple[RuleTemplate, Optional[RuleTemplate]]]:
         return self._rules
 
     @property
