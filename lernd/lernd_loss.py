@@ -3,7 +3,7 @@
 __author__ = "Ingvaras Merkys"
 
 import itertools
-from typing import Dict, List, OrderedDict, Tuple
+from typing import Dict, List, Optional, OrderedDict, Tuple
 
 import tensorflow as tf
 import numpy as np
@@ -57,11 +57,17 @@ def make_lambda(
 
 
 class Lernd:
-    def __init__(self, ilp_problem: ILP, program_template: ProgramTemplate, mini_batch: float = 1.0):
+    def __init__(self,
+                 ilp_problem: ILP,
+                 program_template: ProgramTemplate,
+                 mini_batch: float = 1.0,
+                 full_loss: bool = True
+                 ):
         self._ilp_problem = ilp_problem
         self._language_model = ilp_problem.language_model
         self._program_template = program_template
         self._mini_batch = mini_batch
+        self._full_loss = full_loss
 
         # Random number generator
         self._rng = np.random.default_rng()
@@ -110,28 +116,45 @@ class Lernd:
         return self._big_lambda
 
     # loss is cross-entropy
-    def loss(self, weights: OrderedDict[Predicate, tf.Variable]) -> Tuple[tf.Tensor, tf.Tensor]:
+    def loss(self, weights: OrderedDict[Predicate, tf.Variable]) -> Tuple[tf.Tensor, tf.Tensor, Optional[tf.Tensor]]:
         alphas, small_lambdas = self._big_lambda
         valuation = self._inferrer.f_infer(self._initial_valuation, weights)
 
         # Extracting predictions for given (positive and negative) examples (f_extract)
         predictions = tf.gather(valuation, alphas)
 
-        if self._mini_batch < 1:
+        # Mini batching flag
+        mb = self._mini_batch < 1
+
+        # full_loss is not used for training if mini batching
+        if not mb or self._full_loss:
+            full_loss = -tf.reduce_mean(
+                input_tensor=small_lambdas * tf.math.log(predictions + 1e-12) +
+                (1 - small_lambdas) * tf.math.log(1 - predictions + 1e-12)
+            )
+        else:
+            full_loss = None
+
+        if mb:
             num_examples = len(alphas)
             batch_size = int(self._mini_batch * num_examples)
             indices = self._rng.choice(num_examples, batch_size, replace=False)
             small_lambdas = tf.gather(small_lambdas, indices)
             predictions = tf.gather(predictions, indices)
+            training_loss = -tf.reduce_mean(
+                input_tensor=small_lambdas * tf.math.log(predictions + 1e-12) +
+                (1 - small_lambdas) * tf.math.log(1 - predictions + 1e-12)
+            )
+        else:
+            training_loss = full_loss
 
-        return -tf.reduce_mean(
-            input_tensor=small_lambdas * tf.math.log(predictions + 1e-12) +
-            (1 - small_lambdas) * tf.math.log(1 - predictions + 1e-12)
-        ), valuation
+        return training_loss, valuation, full_loss
 
-    def grad(self, weights: OrderedDict[Predicate, tf.Variable]) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
+    def grad(self,
+             weights: OrderedDict[Predicate, tf.Variable]
+             ) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, Optional[tf.Tensor]]:
         with tf.GradientTape() as tape:
             # print('Calculating loss...')
-            loss_value, valuation = self.loss(weights)
+            loss_value, valuation, full_loss = self.loss(weights)
         # print('Calculating loss gradient...')
-        return tape.gradient(loss_value, all_variables(weights)), loss_value, valuation
+        return tape.gradient(loss_value, all_variables(weights)), loss_value, valuation, full_loss

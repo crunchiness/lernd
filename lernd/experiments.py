@@ -100,4 +100,4 @@ if __name__ == '__main__':
             steps = 300
             mini_batch = 0.3  # loss is based on 30% of random given examples
         print_BPN(ilp_problem)
-        main_loop(ilp_problem, program_template, steps=steps, mini_batch=mini_batch)
+        main_loop(ilp_problem, program_template, steps=steps, mini_batch=mini_batch, plot_loss=True)

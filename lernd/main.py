@@ -8,6 +8,7 @@ from typing import Dict, Tuple
 
 import numpy as np
 import tensorflow as tf
+from matplotlib import pyplot as plt
 from ordered_set import OrderedSet
 
 from .classes import Clause, ILP, ProgramTemplate
@@ -76,8 +77,12 @@ def main_loop(
         steps: int = 6000,
         mini_batch: float = 1.0,
         weight_stddev: float = 0.05,
-        clause_prob_threshold: float = 0.1
+        clause_prob_threshold: float = 0.1,
+        plot_loss: bool = False
 ):
+    # mini-batch flag
+    mb = mini_batch < 1.0
+
     lernd_model = Lernd(ilp_problem, program_template, mini_batch=mini_batch)
 
     print('Generating weight matrices...')
@@ -86,13 +91,35 @@ def main_loop(
     losses = []
     optimizer = tf.keras.optimizers.RMSprop(learning_rate=learning_rate)
     for i in range(1, steps + 1):
-        loss_grad, loss, valuation = lernd_model.grad(weights)
+        loss_grad, loss, valuation, full_loss = lernd_model.grad(weights)
         optimizer.apply_gradients(zip(loss_grad, list(weights.values())))
+        full_loss_float = None if full_loss is None else float(full_loss.numpy())
         loss_float = float(loss.numpy())
-        losses.append(loss_float)
+
+        # Loss for plotting
+        if mb and full_loss is not None:
+            losses.append(full_loss_float)
+        elif not mb:
+            losses.append(loss_float)
+
+        # Printing info
         if i % 10 == 0:
-            print(f'Step {i} loss: {loss_float}\n')
+            if mb and full_loss is not None:
+                print(f'Step {i} loss: {full_loss_float}, mini_batch loss: {loss_float}\n')
+            elif mb and full_loss is None:
+                print(f'Step {i} mini_batch loss: {loss_float}\n')
+            elif not mb:
+                print(f'Step {i} loss: {loss_float}\n')
+
         if i == steps:
             extract_definitions(lernd_model.clauses, weights, clause_prob_threshold=clause_prob_threshold)
             ground_atom_probs = get_ground_atom_probs(valuation, lernd_model.ground_atoms)
             print_valuations(ground_atom_probs)
+
+    if plot_loss and len(losses) > 0:
+        fig, ax = plt.subplots()
+        ax.plot(losses)
+        ax.set_title('Loss')
+        ax.set_xlabel('Step')
+        ax.set_ylabel('Value')
+        plt.show()
