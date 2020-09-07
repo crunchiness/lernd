@@ -83,7 +83,7 @@ def get_ground_atom_probs(a: tf.Tensor, ground_atoms: GroundAtoms) -> typing.Ord
     return ground_atom_probs
 
 
-def softmax(weights: tf.Tensor) -> tf.Tensor:
+def softmax(weights: typing.Union[tf.Tensor, tf.Variable]) -> tf.Tensor:
     """Element-wise softmax"""
     shape = weights.shape
     flat_weights = tf.reshape(weights, [-1])
