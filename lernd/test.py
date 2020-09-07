@@ -22,19 +22,25 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 class TestUtil(unittest.TestCase):
     def test_arity(self):
-        p = Predicate(('p', 2))
+        p = Predicate('p', 2)
         self.assertEqual(u.arity(p), 2)
 
     def test_atom2str(self):
-        p = Predicate(('p', 2))
+        p = Predicate('p', 2)
         var1 = Variable('X')
         var2 = Variable('Y')
-        pred = Atom((p, (var1, var2)))
+        pred = Atom(p, (var1, var2))
         self.assertEqual(u.atom2str(pred), 'p(X,Y)')
+
+    def test_ground_atom2str(self):
+        f = u.str2ground_atom
+        string = 'r(a,a)'
+        ground_atom = f('r(a,a)')
+        self.assertEqual(string, u.ground_atom2str(ground_atom))
 
     def test_str2pred(self):
         pred_str = 'q/2'
-        pred = Predicate(('q', 2))
+        pred = Predicate('q', 2)
         self.assertEqual(u.str2pred(pred_str), pred)
 
     def test_str2atom(self):
@@ -70,7 +76,7 @@ class TestGenerator(unittest.TestCase):
         preds_ext = [u.str2pred('p/2')]
         preds_int = [u.str2pred('q/2')]
         pred = u.str2pred('q/2')
-        tau = RuleTemplate((0, False))
+        tau = RuleTemplate(0, False)
         expected_clauses = [
             'q(A,B)<-p(A,A), p(A,B)',
             'q(A,B)<-p(A,A), p(B,A)',
@@ -89,7 +95,7 @@ class TestGenerator(unittest.TestCase):
         preds_ext = [u.str2pred('p/2')]
         preds_int = [u.str2pred('q/2')]
         pred = u.str2pred('q/2')
-        tau = RuleTemplate((1, True))
+        tau = RuleTemplate(1, True)
         expected_clauses = [
             'q(A,B)<-p(A,A), q(B,A)',
             'q(A,B)<-p(A,A), q(B,B)',
@@ -152,7 +158,7 @@ class TestInferrer(unittest.TestCase):
             (f('r(b,b)'), [(3, 6), (4, 8)])
         ]
         constants = [Constant('a'), Constant('b')]
-        tau = RuleTemplate((1, False))
+        tau = RuleTemplate(1, False)
         target_pred = u.str2pred('r/2')
         preds_ext = [u.str2pred('p/2'), u.str2pred('q/2')]
         preds_aux = []
@@ -195,13 +201,13 @@ class TestInferrer(unittest.TestCase):
         preds_ext = [u.str2pred('p/2'), u.str2pred('q/2')]
         preds_aux = []
         language_model = LanguageModel(target_pred, preds_ext, [Constant('a'), Constant('b')])
-        rules = {target_pred: (RuleTemplate((1, True)), RuleTemplate((1, False)))}
+        rules = {target_pred: (RuleTemplate(1, True), RuleTemplate(1, False))}
         program_template = ProgramTemplate(preds_aux, rules, 0)
         ground_atoms = GroundAtoms(language_model, program_template)
 
         a = tf.convert_to_tensor(np.array([0, 1, 0.9, 0, 0, 0.1, 0, 0.2, 0.8, 0, 0, 0, 0]))
         clause = c.Clause.from_str('r(X,Y)<-p(X,Z), q(Z,Y)')
-        tau = RuleTemplate((1, False))
+        tau = RuleTemplate(1, False)
         expected_a_apostrophe = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0.18, 0.72, 0, 0])
         with tf.device('/CPU:0'):
             xc = i.make_xc(clause, ground_atoms)
@@ -242,9 +248,9 @@ class TestLerndLoss(unittest.TestCase):
 
 class TestClasses(unittest.TestCase):
     def test_Clause_str(self):
-        pred1 = Atom((Predicate(('p', 2)), (Variable('X'), Variable('Y'))))
-        pred2 = Atom((Predicate(('q', 2)), (Variable('X'), Variable('Z'))))
-        pred3 = Atom((Predicate(('t', 2)), (Variable('Y'), Variable('X'))))
+        pred1 = Atom(Predicate('p', 2), (Variable('X'), Variable('Y')))
+        pred2 = Atom(Predicate('q', 2), (Variable('X'), Variable('Z')))
+        pred3 = Atom(Predicate('t', 2), (Variable('Y'), Variable('X')))
         clause = c.Clause(pred1, (pred2, pred3))
         self.assertEqual(clause.__str__(), 'p(X,Y)<-q(X,Z), t(Y,X)')
 
@@ -286,7 +292,7 @@ class TestClasses(unittest.TestCase):
         language_model = LanguageModel(target_pred, preds_ext, [Constant('a'), Constant('b')])
         program_template = ProgramTemplate(preds_aux, {}, 0)
         ground_atoms = GroundAtoms(language_model, program_template)
-        maybe_ground_atom = MaybeGroundAtom.from_atom(Atom((target_pred, (Variable('C'), Variable('C')))))
+        maybe_ground_atom = MaybeGroundAtom.from_atom(Atom(target_pred, (Variable('C'), Variable('C'))))
         actual_ground_atoms = list(list(zip(*(ground_atoms.ground_atom_generator(maybe_ground_atom))))[0])
         f = u.str2ground_atom
         expected_ground_atoms = [

@@ -36,7 +36,7 @@ def get_ground_atoms(language_model: LanguageModel, program_template: ProgramTem
     ground_atoms = []
     for pred in preds:
         for constant_combination in itertools.product(language_model.constants, repeat=u.arity(pred)):
-            ground_atoms.append(GroundAtom((pred, constant_combination)))
+            ground_atoms.append(GroundAtom(pred, constant_combination))
     return ground_atoms
 
 

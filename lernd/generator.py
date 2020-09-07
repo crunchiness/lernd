@@ -57,7 +57,7 @@ def cl(
     assert total_vars <= len(string.ascii_uppercase), 'Handling of more than 26 variables not implemented!'
 
     variables = [Variable(string.ascii_uppercase[i]) for i in range(total_vars)]
-    head = Atom((pred, tuple([variables[i] for i in range(pred_arity)])))
+    head = Atom(pred, tuple([variables[i] for i in range(pred_arity)]))
 
     possible_preds = list(preds_ext) + preds_int if int_ else list(preds_ext)  # type: List[Predicate]
 
@@ -78,7 +78,7 @@ def cl(
 
 def pred_with_vars_generator(predicate: Predicate, variables: List[Variable]) -> Iterable[Atom]:
     for combination in product(variables, repeat=predicate[1]):
-        yield Atom((predicate, tuple(combination)))
+        yield Atom(predicate, tuple(combination))
 
 
 def check_clause_unsafe(clause: Clause) -> bool:

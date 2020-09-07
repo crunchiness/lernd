@@ -23,7 +23,7 @@ def str2pred(s: str) -> Predicate:
     if result:
         predicate_name = result.group(1)
         arity = int(result.group(2))
-        return Predicate((predicate_name, arity))
+        return Predicate(predicate_name, arity)
     else:
         raise Exception
 
@@ -44,14 +44,14 @@ def str2atom(s: str) -> Atom:
     vars_strs = vars_str.split(',') if vars_str != '' else []
     vars = tuple(map(lambda x: Variable(x), vars_strs))
     arity = len(vars_strs)
-    return Atom((Predicate((name, arity)), vars))
+    return Atom(Predicate(name, arity), vars)
 
 
 def atom2str(atom: Atom) -> str:
     pred, vars = atom
     pred_name, pred_arity = pred
     assert pred_arity == len(vars), 'Too many arguments for the predicate!'
-    return '{0}({1})'.format(pred_name, ','.join(vars))
+    return '{0}({1})'.format(pred_name, ','.join([v.name for v in vars]))
 
 
 # GroundAtom
@@ -62,14 +62,14 @@ def str2ground_atom(s: str) -> GroundAtom:
     consts_strs = consts_str.split(',') if consts_str != '' else []
     consts = tuple(map(lambda x: Constant(x), consts_strs))
     arity = len(consts_strs)
-    return GroundAtom((Predicate((name, arity)), consts))
+    return GroundAtom(Predicate(name, arity), consts)
 
 
 def ground_atom2str(ground_atom: GroundAtom) -> str:
     pred, consts = ground_atom
     pred_name, pred_arity = pred
     assert pred_arity == len(consts), 'Too many arguments for the predicate!'
-    return '{0}({1})'.format(pred_name, ','.join(consts))
+    return '{0}({1})'.format(pred_name, ','.join([c.name for c in consts]))
 
 
 # Other

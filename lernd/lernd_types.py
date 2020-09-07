@@ -2,12 +2,32 @@
 
 __author__ = "Ingvaras Merkys"
 
-from typing import NewType, Tuple
+from typing import NamedTuple, Tuple
 
-# (v, int) v - number of exist. quantified vars allowed in the clause, int - whether intensional predicates are allowed
-RuleTemplate = NewType('RuleTemplate', Tuple[int, bool])
-Predicate = NewType('Predicate', Tuple[str, int])  # (name, arity)
-Variable = NewType('Variable', str)
-Constant = NewType('Constant', str)
-Atom = NewType('Atom', Tuple[Predicate, Tuple[Variable, ...]])
-GroundAtom = NewType('GroundAtom', Tuple[Predicate, Tuple[Constant, ...]])
+
+class Constant(NamedTuple):
+    name: str
+
+
+class Predicate(NamedTuple):
+    name: str
+    arity: int
+
+
+class RuleTemplate(NamedTuple):
+    v: int  # number of exist. quantified vars allowed in the clause
+    int: bool  # whether intensional predicates are allowed
+
+
+class Variable(NamedTuple):
+    name: str
+
+
+class Atom(NamedTuple):
+    pred: Predicate
+    vars: Tuple[Variable, ...]
+
+
+class GroundAtom(NamedTuple):
+    pred: Predicate
+    consts: Tuple[Constant, ...]

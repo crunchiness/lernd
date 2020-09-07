@@ -140,7 +140,7 @@ class MaybeGroundAtom:
 
     def to_ground_atom(self) -> GroundAtom:
         if self.is_ground():
-            return GroundAtom((self._pred, tuple((self.arg_at(i) for i in range(self._len)))))
+            return GroundAtom(self._pred, tuple((self.arg_at(i) for i in range(self._len))))
         else:
             raise Exception()  # TODO: something better
 
@@ -216,17 +216,17 @@ class GroundAtoms:
         pred = maybe_ground_atom.pred
         arity = maybe_ground_atom.arity
         if arity == 1:
-            return ((GroundAtom((pred, (c,))), {maybe_ground_atom.arg_at(0): c}) for c in self._constants)
+            return ((GroundAtom(pred, (c,)), {maybe_ground_atom.arg_at(0): c}) for c in self._constants)
         elif arity == 2:
             if maybe_ground_atom.const_at(0):
-                return ((GroundAtom((pred, (maybe_ground_atom.arg_at(0), c))), {maybe_ground_atom.arg_at(1): c}) for c in self._constants)
+                return ((GroundAtom(pred, (maybe_ground_atom.arg_at(0), c)), {maybe_ground_atom.arg_at(1): c}) for c in self._constants)
             elif maybe_ground_atom.const_at(1):
-                return ((GroundAtom((pred, (c, maybe_ground_atom.arg_at(1)))), {maybe_ground_atom.arg_at(0): c}) for c in self._constants)
+                return ((GroundAtom(pred, (c, maybe_ground_atom.arg_at(1))), {maybe_ground_atom.arg_at(0): c}) for c in self._constants)
             else:
                 if not maybe_ground_atom.const_at(0) and not maybe_ground_atom.const_at(1) and maybe_ground_atom.arg_at(0) == maybe_ground_atom.arg_at(1):
-                    return ((GroundAtom((pred, (c, c))), {maybe_ground_atom.arg_at(0): c}) for c in self._constants)
+                    return ((GroundAtom(pred, (c, c)), {maybe_ground_atom.arg_at(0): c}) for c in self._constants)
                 else:
-                    return ((GroundAtom((pred, (c1, c2))), {maybe_ground_atom.arg_at(0): c1, maybe_ground_atom.arg_at(1): c2}) for c1, c2 in itertools.product(self._constants, repeat=arity))
+                    return ((GroundAtom(pred, (c1, c2)), {maybe_ground_atom.arg_at(0): c1, maybe_ground_atom.arg_at(1): c2}) for c1, c2 in itertools.product(self._constants, repeat=arity))
         else:
             raise Exception()  # TODO: something better
 
@@ -234,13 +234,13 @@ class GroundAtoms:
         for pred in self._preds:
             arity = u.arity(pred)
             if arity == 0:
-                yield GroundAtom((pred, ()))
+                yield GroundAtom(pred, ())
             elif arity == 1:
                 for c in self._constants:
-                    yield GroundAtom((pred, (c,)))
+                    yield GroundAtom(pred, (c,))
             elif arity == 2:
                 for c1, c2 in itertools.product(self._constants, repeat=2):
-                    yield GroundAtom((pred, (c1, c2)))
+                    yield GroundAtom(pred, (c1, c2))
 
     def get_ground_atom_index(self, ground_atom: GroundAtom) -> int:
         pred, consts = ground_atom

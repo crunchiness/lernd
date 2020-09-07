@@ -35,8 +35,8 @@ def setup_even():
     aux_pred = str2pred('pred/2')
     aux_preds = [aux_pred]
     rules = {
-        target_pred: (RuleTemplate((0, False)), RuleTemplate((1, True))),
-        aux_pred: (RuleTemplate((1, False)), None)
+        target_pred: (RuleTemplate(0, False), RuleTemplate(1, True)),
+        aux_pred: (RuleTemplate(1, False), None)
     }
     forward_chaining_steps = 6
     program_template = ProgramTemplate(aux_preds, rules, forward_chaining_steps)
@@ -63,7 +63,7 @@ def setup_predecessor():
 
     # Program template
     preds_aux = []
-    rules = {target_pred: (RuleTemplate((0, False)), None)}
+    rules = {target_pred: (RuleTemplate(0, False), None)}
     forward_chaining_steps = 1
     program_template = ProgramTemplate(preds_aux, rules, forward_chaining_steps)
 
