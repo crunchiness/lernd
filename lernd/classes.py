@@ -45,6 +45,9 @@ class Clause:
         body = tuple(map(u.str2atom, body_strs))
         return cls(head, body)
 
+    def to_latex(self) -> str:
+        return '${0}\\leftarrow {1}$'.format(u.atom2str(self._head), ', '.join(map(u.atom2str, self._body)))
+
 
 class LanguageModel:
     def __init__(self, target: Predicate, preds_ext: List[Predicate], constants: List[Constant]):
