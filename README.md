@@ -8,6 +8,8 @@ Demo Jupyter notebooks are available online on Kaggle for a quick look into how 
 1. https://www.kaggle.com/ingvaras/lernd-intro-predecessor
 2. https://www.kaggle.com/ingvaras/lernd-even
 
+Notebook files for local use can be found on https://github.com/crunchiness/lernd-notebooks
+
 ## Set up and run
 
 ### Step 1
