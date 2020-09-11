@@ -3,6 +3,9 @@
 Lernd stands for [Learning Explanatory Rules from Noisy Data](https://arxiv.org/abs/1711.04574).
 It is my implementation of the algorithm in the linked paper.
 
+Learning the concept of even numbers from scratch*
+![lernd.gif](https://ingvaras.com/images/lernd.gif)
+
 ## Demo Jupyter notebooks
 Demo Jupyter notebooks are available online on Kaggle for a quick look into how it works:
 1. https://www.kaggle.com/ingvaras/lernd-intro-predecessor
