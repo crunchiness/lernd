@@ -16,11 +16,11 @@ Notebook files for local use can be found on https://github.com/crunchiness/lern
 ## Set up and run
 
 ### Step 1
-Run Lernd on Python 3.7+
+Run Lernd on Python 3.8+
 
 You may create a conda environment (here named "lernd"):
 ```bash
-conda create -n lernd python=3.7
+conda create -n lernd python=3.8
 ```
 
 (Follow instructions at [anaconda.com](https://www.anaconda.com) to get and install the conda package manager.)
