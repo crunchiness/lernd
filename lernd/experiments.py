@@ -46,7 +46,7 @@ def setup_even():
     background = [ground_zero] + [str2ground_atom(f'succ({i},{i + 1})') for i in range(10)]
     positive = [str2ground_atom(f'even({i})') for i in range(0, 11, 2)]
     negative = [str2ground_atom(f'even({i})') for i in range(1, 10, 2)]
-    ilp_problem = ILP(language_model, background, positive, negative)
+    ilp_problem = ILP('even', language_model, background, positive, negative)
     return ilp_problem, program_template
 
 
@@ -78,7 +78,7 @@ def setup_predecessor():
         if ground_atom not in positive_examples:
             negative_examples.append(ground_atom)
 
-    ilp_problem = ILP(language_model, background_axioms, positive_examples, negative_examples)
+    ilp_problem = ILP('predecessor', language_model, background_axioms, positive_examples, negative_examples)
     return ilp_problem, program_template
 
 
