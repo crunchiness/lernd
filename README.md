@@ -45,7 +45,12 @@ Some benchmark problems are defined in file `lernd/experiments.py`.
 You may run lernd on them:
 ```bash
 conda activate lernd  # activate environment if using conda
-python -m lernd.experiments
+python -m lernd.experiments <problem>  # problems: predecessor, even 
+```
+
+Do a 100 runs at once, saving the output:
+```bash
+python -m lernd.run_many <problem> 100
 ```
 
 
