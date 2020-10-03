@@ -2,6 +2,9 @@
 
 __author__ = "Ingvaras Merkys"
 
+import datetime
+import os
+import pickle
 import typing
 from collections import OrderedDict
 from typing import Dict, Tuple
@@ -15,6 +18,27 @@ from .classes import Clause, ILP, ProgramTemplate
 from .lernd_loss import Lernd
 from .lernd_types import Predicate, RuleTemplate, GroundAtom
 from .util import ground_atom2str, get_ground_atom_probs
+
+
+def output_to_files(
+        task_id: str,
+        definitions: str,
+        ground_atoms: str,
+        losses: typing.List[float],
+        weights: typing.OrderedDict[Predicate, tf.Variable],
+        folder: str = ''
+):
+    with open(os.path.join(folder, f'{task_id}_definitions.txt'), 'w') as f:
+        f.write(definitions)
+    with open(os.path.join(folder, f'{task_id}_ground_atoms.txt'), 'w') as f:
+        f.write(ground_atoms)
+    with open(os.path.join(folder, f'{task_id}_losses.txt'), 'w') as f:
+        [f.write(str(loss) + '\n') for loss in losses]
+    pickle.dump(weights, open(os.path.join(folder, f'{task_id}_weights.pickle'), 'wb'))
+
+
+def timestamp_str():
+    return str(datetime.datetime.now()).replace(' ', '_').replace(':', '-')
 
 
 def generate_weight_matrices(
@@ -41,6 +65,7 @@ def extract_definitions(
         weights: typing.OrderedDict[Predicate, tf.Variable],
         clause_prob_threshold: float = 0.1
 ):
+    output = ''
     for pred, ((clauses_1, tau1), (clauses_2, tau2)) in clauses.items():
         shape = weights[pred].shape
         pred_weights = tf.reshape(weights[pred], [-1])
@@ -48,26 +73,28 @@ def extract_definitions(
         max_value = np.max(pred_probs_flat)
         clause_prob_threshold = min(max_value, clause_prob_threshold)
         pred_probs = tf.reshape(pred_probs_flat[:, np.newaxis], shape)
-        print(f'clause_prob_threshold: {clause_prob_threshold}\n')  # debug
-        print('Clause learnt:')
+        output += f'clause_prob_threshold: {clause_prob_threshold}\n\n'
+        output += 'Clause learnt:\n'
         indices = np.nonzero(pred_probs >= clause_prob_threshold)
         if tau2 is not None:
             for index_tuple in zip(indices[0], indices[1]):
-                print(f'With probability (confidence): {pred_probs[index_tuple]}')
-                print(clauses_1[index_tuple[0]])
-                print(clauses_2[index_tuple[1]])
+                output += f'With probability (confidence): {pred_probs[index_tuple]}\n\n'
+                output += str(clauses_1[index_tuple[0]]) + '\n'
+                output += str(clauses_2[index_tuple[1]]) + '\n'
         else:
             for index in indices[0]:
-                print(f'With probability (confidence): {pred_probs[index][0]}')
-                print(clauses_1[index])
-        print()
+                output += f'With probability (confidence): {pred_probs[index][0]}\n'
+                output += str(clauses_1[index]) + '\n'
+        output += '\n'
+    return output
 
 
-def print_valuations(ground_atom_probs: typing.OrderedDict[GroundAtom, float], threshold: float = 0.01):
-    print(f'Valuations of ground atoms (only those >{threshold} for readability):')
+def get_valuations(ground_atom_probs: typing.OrderedDict[GroundAtom, float], threshold: float = 0.01) -> str:
+    output = f'Valuations of ground atoms (only those >{threshold} for readability):\n'
     for ground_atom, p in ground_atom_probs.items():
         if p > threshold:
-            print(f'{ground_atom2str(ground_atom)} - {p}')
+            output += f'{ground_atom2str(ground_atom)} - {p}\n'
+    return output
 
 
 def main_loop(
@@ -78,8 +105,11 @@ def main_loop(
         mini_batch: float = 1.0,
         weight_stddev: float = 0.05,
         clause_prob_threshold: float = 0.1,
-        plot_loss: bool = False
+        plot_loss: bool = False,
+        save_output: bool = False
 ):
+    task_id = f'{ilp_problem.name}_{timestamp_str()}'
+
     # mini-batch flag
     mb = mini_batch < 1.0
 
@@ -112,14 +142,21 @@ def main_loop(
                 print(f'Step {i} loss: {loss_float}\n')
 
         if i == steps:
-            extract_definitions(lernd_model.clauses, weights, clause_prob_threshold=clause_prob_threshold)
+            definitions = extract_definitions(lernd_model.clauses, weights, clause_prob_threshold=clause_prob_threshold)
+            print(definitions)
             ground_atom_probs = get_ground_atom_probs(valuation, lernd_model.ground_atoms)
-            print_valuations(ground_atom_probs)
+            ground_atom_probs_str = get_valuations(ground_atom_probs)
+            print(ground_atom_probs_str)
+            if save_output:
+                output_to_files(task_id, definitions, ground_atom_probs_str, losses, weights)
 
-    if plot_loss and len(losses) > 0:
+    if (plot_loss or save_output) and len(losses) > 0:
         fig, ax = plt.subplots()
         ax.plot(losses)
         ax.set_title('Loss')
         ax.set_xlabel('Step')
         ax.set_ylabel('Value')
-        plt.show()
+        if save_output:
+            plt.savefig(task_id + '.png')
+        if plot_loss:
+            plt.show()
