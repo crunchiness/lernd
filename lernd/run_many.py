@@ -1,5 +1,11 @@
+#!/usr/bin/env python3
+
+__author__ = "Ingvaras Merkys"
+
 import argparse
 import os
+from pathlib import Path
+
 import psutil
 import ray
 import tensorflow as tf
@@ -8,6 +14,9 @@ from lernd.experiments import setup_even, setup_predecessor
 from lernd.main import main_loop
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+# Need to add lernd to PYTHONPATH for ray to work
+os.environ['PYTHONPATH'] = str(Path(os.path.realpath(__file__)).parent.parent)
 
 
 @ray.remote
@@ -58,4 +67,4 @@ if __name__ == '__main__':
     # Run the tasks
     ray.init(num_cpus=args.cpus)
     with tf.device('/CPU:0'):
-        print(ray.get([run_many.remote() for _ in range(args.runs)]))
+        ray.get([run_many.remote() for _ in range(args.runs)])
