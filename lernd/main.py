@@ -3,6 +3,7 @@
 __author__ = "Ingvaras Merkys"
 
 import datetime
+import json
 import os
 import pickle
 import typing
@@ -28,7 +29,7 @@ def output_to_files(
         weights: typing.OrderedDict[Predicate, tf.Variable],
         folder: str = ''
 ):
-    with open(os.path.join(folder, f'{task_id}_definitions.txt'), 'w') as f:
+    with open(os.path.join(folder, f'{task_id}_definitions.json'), 'w') as f:
         f.write(definitions)
     with open(os.path.join(folder, f'{task_id}_ground_atoms.txt'), 'w') as f:
         f.write(ground_atoms)
@@ -64,8 +65,11 @@ def extract_definitions(
         ],
         weights: typing.OrderedDict[Predicate, tf.Variable],
         clause_prob_threshold: float = 0.1
-):
-    output = ''
+) -> str:
+    """Extracts definitions of target and auxiliary predicates from weights.
+    :return JSON string
+    """
+    output = []
     for pred, ((clauses_1, tau1), (clauses_2, tau2)) in clauses.items():
         shape = weights[pred].shape
         pred_weights = tf.reshape(weights[pred], [-1])
@@ -73,20 +77,18 @@ def extract_definitions(
         max_value = np.max(pred_probs_flat)
         clause_prob_threshold = min(max_value, clause_prob_threshold)
         pred_probs = tf.reshape(pred_probs_flat[:, np.newaxis], shape)
-        output += f'clause_prob_threshold: {clause_prob_threshold}\n\n'
-        output += 'Clause learnt:\n'
+        item = {'clause_prob_threshold': clause_prob_threshold}
         indices = np.nonzero(pred_probs >= clause_prob_threshold)
         if tau2 is not None:
             for index_tuple in zip(indices[0], indices[1]):
-                output += f'With probability (confidence): {pred_probs[index_tuple]}\n\n'
-                output += str(clauses_1[index_tuple[0]]) + '\n'
-                output += str(clauses_2[index_tuple[1]]) + '\n'
+                item['confidence'] = pred_probs[index_tuple].numpy().astype(float)
+                item['definition'] = [str(clauses_1[index_tuple[0]]), str(clauses_2[index_tuple[1]])]
         else:
             for index in indices[0]:
-                output += f'With probability (confidence): {pred_probs[index][0]}\n'
-                output += str(clauses_1[index]) + '\n'
-        output += '\n'
-    return output
+                item['confidence'] = pred_probs[index][0].numpy().astype(float)
+                item['definition'] = [str(clauses_1[index])]
+        output.append(item)
+    return json.dumps(output, indent=4)
 
 
 def get_valuations(ground_atom_probs: typing.OrderedDict[GroundAtom, float], threshold: float = 0.01) -> str:
@@ -143,7 +145,7 @@ def main_loop(
 
         if i == steps:
             definitions = extract_definitions(lernd_model.clauses, weights, clause_prob_threshold=clause_prob_threshold)
-            print(definitions)
+            print('Definitions:', definitions)
             ground_atom_probs = get_ground_atom_probs(valuation, lernd_model.ground_atoms)
             ground_atom_probs_str = get_valuations(ground_atom_probs)
             print(ground_atom_probs_str)
