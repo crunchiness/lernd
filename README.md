@@ -1,12 +1,12 @@
 # LERND
 
+[![DOI](https://ingvaras.com/static/images/zenodo.4294059.svg)](https://doi.org/10.5281/zenodo.4294059)
+
 Lernd stands for [Learning Explanatory Rules from Noisy Data](https://arxiv.org/abs/1711.04574).
 It is my implementation of the algorithm in the linked paper.
 
 Learning the concept of even numbers from scratch*
 ![lernd.gif](https://ingvaras.com/images/lernd.gif)
-
-[![DOI](https://zenodo.org/badge/164451486.svg)](https://zenodo.org/badge/latestdoi/164451486)
 
 If you found this code useful for your research please cite in your work:
 ```
