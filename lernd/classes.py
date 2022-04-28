@@ -93,11 +93,13 @@ class ProgramTemplate:
 
 class ILP:
     def __init__(self,
+                 name: str,  # name of the problem
                  language_model: LanguageModel,        # L
                  background_axioms: List[GroundAtom],  # B
                  positive_examples: List[GroundAtom],  # P
                  negative_examples: List[GroundAtom]   # N
                  ):
+        self.name = name
         self._language_model = language_model
         self._background_axioms = background_axioms
         self._positive_examples = positive_examples
@@ -118,6 +120,25 @@ class ILP:
     @property
     def negative_examples(self) -> List[GroundAtom]:
         return self._negative_examples
+
+
+class Substitution:
+    def __init__(self, vs: Iterable[Variable], cs: Iterable[Constant]):
+        self.subst = {var: const for var, const in zip(vs, cs)}
+        self.subst_reverse = {const: var for var, const in zip(vs, cs)}
+
+    def get_constant(self, c: Constant) -> Optional[Variable]:
+        if c in self.subst_reverse:
+            return self.subst_reverse[c]
+
+    def add(self, v: Variable, c: Constant):
+        self.subst[v] = c
+        self.subst_reverse[c] = v
+
+    def apply_to_atom(self, a: Atom) -> GroundAtom:
+        m = MaybeGroundAtom.from_atom(a)
+        m.apply_substitutions(self)
+        return m.to_ground_atom()
 
 
 class MaybeGroundAtom:
@@ -147,7 +168,9 @@ class MaybeGroundAtom:
         else:
             raise Exception()  # TODO: something better
 
-    def apply_substitutions(self, substitutions: Dict[Variable, Constant]):
+    def apply_substitutions(self, substitutions: Union[Substitution, Dict[Variable, Constant]]):
+        if isinstance(substitutions, Substitution):
+            substitutions = substitutions.subst
         for i in range(self._len):
             if not self.const_at(i) and self.arg_at(i) in substitutions:
                 self._args[i] = (substitutions[self.arg_at(i)], True)

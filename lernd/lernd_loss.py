@@ -3,6 +3,7 @@
 __author__ = "Ingvaras Merkys"
 
 import itertools
+import random
 from typing import Dict, List, Optional, OrderedDict, Tuple
 
 import tensorflow as tf
@@ -61,12 +62,12 @@ class Lernd:
                  ilp_problem: ILP,
                  program_template: ProgramTemplate,
                  mini_batch: float = 1.0,
-                 full_loss: bool = True
+                 full_loss: bool = True,
+                 worlds: bool = False
                  ):
         self._ilp_problem = ilp_problem
         self._language_model = ilp_problem.language_model
         self._program_template = program_template
-        self._mini_batch = mini_batch
         self._full_loss = full_loss
 
         # Random number generator
@@ -86,6 +87,25 @@ class Lernd:
 
         print('Initializing Inferrer')
         self._inferrer = Inferrer(self._ground_atoms, self._language_model, self._clauses, self._program_template)
+
+        # Mini batching
+        if mini_batch < 1.0:
+            # self._mb = MiniBatchSettings(fraction=mini_batch, data_size=len(self._big_lambda[0]))
+            self._mb = True
+            self._mb_fraction = mini_batch
+            self._mb_data_size = len(self._big_lambda[0])
+            self._mb_batch_size = int(self._mb_fraction * self._mb_data_size)
+        else:
+            self._mb = False
+
+        self._worlds = worlds
+        if worlds:
+            # TODO: worlds - split into three random sets
+            # Splitting into 2 sets for now
+            world_set = set([x for x in range(self._mb_data_size)])
+            world_size = int(self._mb_data_size / 2)
+            self._worlds_bpn1 = set(self._rng.choice(len(world_set), world_size, replace=False))
+            self._worlds_bpn2 = world_set - self._worlds_bpn1
 
     @property
     def ilp_problem(self) -> ILP:
@@ -115,6 +135,20 @@ class Lernd:
     def big_lambda(self) -> Tuple[tf.Tensor, tf.Tensor]:
         return self._big_lambda
 
+    def get_indices(self):
+        # if not mb raise exception
+        # choose world
+        # choose indices
+        if not self._worlds:
+            indices = self._rng.choice(self._mb_data_size, self._mb_batch_size, replace=False)
+            return indices
+        else:
+            # TODO: make prettier
+            which = random.choice([0, 1])
+            list_ = list(self._worlds_bpn1) if which == 0 else list(self._worlds_bpn2)
+            random.shuffle(list_)
+            return list_[:self._mb_batch_size]
+
     # loss is cross-entropy
     def loss(self, weights: OrderedDict[Predicate, tf.Variable]) -> Tuple[tf.Tensor, tf.Tensor, Optional[tf.Tensor]]:
         alphas, small_lambdas = self._big_lambda
@@ -123,11 +157,8 @@ class Lernd:
         # Extracting predictions for given (positive and negative) examples (f_extract)
         predictions = tf.gather(valuation, alphas)
 
-        # Mini batching flag
-        mb = self._mini_batch < 1
-
         # full_loss is not used for training if mini batching
-        if not mb or self._full_loss:
+        if not self._mb or self._full_loss:
             full_loss = -tf.reduce_mean(
                 input_tensor=small_lambdas * tf.math.log(predictions + 1e-12) +
                 (1 - small_lambdas) * tf.math.log(1 - predictions + 1e-12)
@@ -135,10 +166,8 @@ class Lernd:
         else:
             full_loss = None
 
-        if mb:
-            num_examples = len(alphas)
-            batch_size = int(self._mini_batch * num_examples)
-            indices = self._rng.choice(num_examples, batch_size, replace=False)
+        if self._mb:
+            indices = self.get_indices()
             small_lambdas = tf.gather(small_lambdas, indices)
             predictions = tf.gather(predictions, indices)
             training_loss = -tf.reduce_mean(

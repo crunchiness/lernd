@@ -13,6 +13,7 @@ from lernd import generator as g
 from lernd import inferrer as i
 from lernd import lernd_loss as l
 from lernd import util as u
+from lernd.analyzer import calculate_heads
 from lernd.classes import GroundAtoms, LanguageModel, MaybeGroundAtom, ProgramTemplate
 from lernd.lernd_types import Atom, Constant, Predicate, RuleTemplate, Variable
 
@@ -300,6 +301,57 @@ class TestClasses(unittest.TestCase):
             f('r(b,b)')
         ]
         self.assertEqual(actual_ground_atoms, expected_ground_atoms)
+
+
+class TestAnalyzer(unittest.TestCase):
+    def xtest_calculate_heads(self):
+        clause = c.Clause.from_str('pred(A,B)<-succ(A,C), succ(C,B)')
+        background = list(map(u.str2ground_atom, ['succ(1,2)', 'succ(2,3)', 'succ(3,4)', 'succ(4,5)']))
+        expected = list(map(u.str2ground_atom, ['pred(1,3)', 'pred(2,4)', 'pred(3,5)']))
+        actual = [head for head in calculate_heads(clause, background)]
+        self.assertEqual(actual, expected)
+
+    def xtest_calculate_heads_arity1(self):
+        clause = c.Clause.from_str('pred(A)<-zero(A), zero(A)')
+        background = [u.str2ground_atom('zero(0)')]
+        expected = [u.str2ground_atom('pred(0)')]
+        actual = [head for head in calculate_heads(clause, background)]
+        self.assertEqual(actual, expected)
+
+    def xtest_calculate_heads_arity2(self):
+        clause = c.Clause.from_str('murder(A,B)<-kill(A,B), evil(A)')
+        background = list(map(u.str2ground_atom, ['kill(hannibal,abigail)', 'evil(hannibal)']))
+        expected = [u.str2ground_atom('murder(hannibal,abigail)')]
+        actual = [head for head in calculate_heads(clause, background)]
+        self.assertEqual(actual, expected)
+
+    def test_calculate_heads_arity3(self):
+        clause = c.Clause.from_str('one(B)<-succ(A,B), zero(A)')
+        background = list(map(u.str2ground_atom, ['succ(0,1)', 'zero(0)']))
+        expected = [u.str2ground_atom('one(1)')]
+        actual = [head for head in calculate_heads(clause, background)]
+        self.assertEqual(actual, expected)
+
+    def test_calculate_heads_arity4(self):
+        clause = c.Clause.from_str('one(B)<-zero(A), succ(A,B)')
+        background = list(map(u.str2ground_atom, ['succ(0,1)', 'zero(0)']))
+        expected = [u.str2ground_atom('one(1)')]
+        actual = [head for head in calculate_heads(clause, background)]
+        self.assertEqual(actual, expected)
+
+    def test_calculate_heads_arity5(self):
+        clause = c.Clause.from_str('one(B)<-zero(A), succ(A,B)')
+        background = list(map(u.str2ground_atom, ['succ(1,2)', 'zero(0)']))
+        expected = []
+        actual = [head for head in calculate_heads(clause, background)]
+        self.assertEqual(actual, expected)
+
+    def test_calculate_heads_arity6(self):
+        clause = c.Clause.from_str('rude(B)<-night(), loud(B)')
+        background = list(map(u.str2ground_atom, ['night()', 'loud(freddy)']))
+        expected = [u.str2ground_atom('rude(freddy)')]
+        actual = [head for head in calculate_heads(clause, background)]
+        self.assertEqual(actual, expected)
 
 
 if __name__ == '__main__':
